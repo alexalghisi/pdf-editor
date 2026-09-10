@@ -1,25 +1,25 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { RootNavigator } from '@/presentation/navigation/RootNavigator';
+import { colors } from '@/presentation/theme';
 
 export default function App() {
   return (
-    <View style={styles.root}>
-      <StatusBar style="light" />
-      <Text style={styles.title}>PDF Editor</Text>
-    </View>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <RootNavigator />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0E1116',
-  },
-  title: {
-    color: '#E8EDF2',
-    fontSize: 20,
-    fontWeight: '600',
+    backgroundColor: colors.background,
   },
 });
