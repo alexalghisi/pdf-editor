@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["PdfNativeEngineModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.pdfnativeengine.PdfNativeEngineModule"]
+  }
+}
