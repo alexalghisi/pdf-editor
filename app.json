@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "PDF Editor",
+    "slug": "pdf-editor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E1116"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alghisi.pdfeditor",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "PDF Editor uses your photo library when you insert an image into a document."
+      }
+    },
+    "android": {
+      "package": "com.alghisi.pdfeditor",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1116",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-document-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PDF Editor uses your photo library when you insert an image into a document."
+        }
+      ]
+    ]
+  }
+}
