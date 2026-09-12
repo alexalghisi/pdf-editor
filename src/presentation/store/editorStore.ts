@@ -97,19 +97,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   async createBlank() {
-    const { fileSystem, loadDocument } = getAppContainer();
+    const { loadDocument } = getAppContainer();
     set({ status: 'loading', errorMessage: null });
     const bytes = await createBlankPdfDocument();
-    const uri = fileSystem.cachePath(`untitled-${Date.now()}.pdf`);
-    await fileSystem.writeBinary(uri, bytes);
-    const result = await loadDocument.execute(uri);
+    const result = await loadDocument.executeFromBytes(bytes);
     if (!result.ok) {
       set({ status: 'error', errorMessage: result.error.message });
       return;
     }
     set({
       document: result.value,
-      fileUri: uri,
+      fileUri: null,
       fileName: 'Untitled.pdf',
       currentPageIndex: 0,
       selectedNodeId: null,
