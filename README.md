@@ -105,6 +105,24 @@ npx expo run:android
 
 Expo Go still edits the AST. The canvas draws a paper surface and node overlays when the JSI module is absent.
 
+### Run in the browser (no Xcode required)
+
+The engine is `pdf-lib`, so the whole editor runs unchanged on the web. A build is
+published to GitHub Pages and works on any device — including an iPhone — straight
+from the browser:
+
+**Live app:** https://alexalghisi.github.io/pdf-editor/
+
+```bash
+npm run build:web   # exports a static bundle to ./dist
+npx expo start --web
+```
+
+On web, document/image pickers hand back `blob:`/`data:` URIs, and a save is
+delivered as a browser download of the edited PDF. Native page rasterization is
+absent on the web and degrades to the paper surface; structural editing and
+lossless export are unaffected.
+
 ### Scripts
 
 | Command | Purpose |
@@ -113,6 +131,7 @@ Expo Go still edits the AST. The canvas draws a paper surface and node overlays 
 | `npm run test:coverage` | Coverage with thresholds |
 | `npm run typecheck` | `tsc --noEmit`, strict + `noUncheckedIndexedAccess` |
 | `npx expo start` | Metro bundler |
+| `npm run build:web` | Static web export to `./dist` |
 
 ## TDD map
 
