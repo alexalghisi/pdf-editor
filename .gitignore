@@ -40,3 +40,6 @@ coverage/
 # generated native folders
 /ios
 /android
+
+# web export
+/dist
