@@ -2,7 +2,9 @@ import { tokenizeContentStream } from '@/infrastructure/pdf/contentStream/tokeni
 
 describe('tokenizeContentStream', () => {
   it('tokenizes a simple text object', () => {
-    const tokens = tokenizeContentStream('BT /F1 12 Tf 72 720 Td (Hello PDF) Tj ET');
+    const tokens = tokenizeContentStream(
+      'BT /F1 12 Tf 72 720 Td (Hello PDF) Tj ET',
+    );
 
     expect(tokens.map((token) => token.kind)).toEqual([
       'operator',

@@ -47,10 +47,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
       <View style={styles.stage}>
         <Pressable onPress={() => selectNode(null)}>
           <View
-            style={[
-              styles.paper,
-              { width: pageWidth, height: pageHeight },
-            ]}
+            style={[styles.paper, { width: pageWidth, height: pageHeight }]}
           >
             {rasterUri.length > 0 ? (
               <Image
