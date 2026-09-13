@@ -1,0 +1,9 @@
+coverage
+package-lock.json
+
+# Expo / native build output
+.expo
+android
+ios
+dist
+web-build
