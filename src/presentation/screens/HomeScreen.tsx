@@ -73,9 +73,7 @@ export function HomeScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Author  Alghisi Alessandro Paolo
-        </Text>
+        <Text style={styles.footerText}>Author Alghisi Alessandro Paolo</Text>
         <Text style={styles.footerText}>alexalghisi@gmail.com</Text>
       </View>
     </SafeAreaView>

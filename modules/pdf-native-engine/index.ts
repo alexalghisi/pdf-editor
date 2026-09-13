@@ -6,7 +6,10 @@ function load(): NativePdfEngineSpec | null {
   try {
     return requireNativeModule<NativePdfEngineSpec>('PdfNativeEngine');
   } catch {
-    const proxy = NativeModulesProxy as Record<string, NativePdfEngineSpec | undefined>;
+    const proxy = NativeModulesProxy as Record<
+      string,
+      NativePdfEngineSpec | undefined
+    >;
     return proxy.PdfNativeEngine ?? null;
   }
 }

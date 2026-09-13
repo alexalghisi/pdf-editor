@@ -66,7 +66,9 @@ describe('useEditorStore', () => {
     const document = documentStub();
     mockLoadExecute.mockResolvedValue(ok(document));
 
-    await useEditorStore.getState().openFromUri('file://report.pdf', 'report.pdf');
+    await useEditorStore
+      .getState()
+      .openFromUri('file://report.pdf', 'report.pdf');
 
     expect(useEditorStore.getState().document?.id).toBe('doc-1');
     expect(useEditorStore.getState().fileName).toBe('report.pdf');
