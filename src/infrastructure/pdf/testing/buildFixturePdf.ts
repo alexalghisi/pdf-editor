@@ -20,7 +20,10 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 
 function escapePdfLiteral(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
 }
 
 function concat(parts: readonly Uint8Array[]): Uint8Array {
@@ -68,9 +71,7 @@ export function buildFixturePdf(options: FixturePdfOptions = {}): Uint8Array {
   const objects: string[] = [];
 
   objects.push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
-  objects.push(
-    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
-  );
+  objects.push('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
 
   const resources = includeImage
     ? '<< /Font << /F1 5 0 R >> /XObject << /Im1 6 0 R >> >>'

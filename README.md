@@ -64,13 +64,13 @@ flowchart TB
 
 ### Why this split
 
-| Layer | Responsibility |
-| --- | --- |
-| Domain | Immutable document model in ISO 32000 user space. No React, no pdf-lib. |
-| Application | Orchestrates ports. Returns `Result<T, PdfDomainError>`. |
+| Layer          | Responsibility                                                                         |
+| -------------- | -------------------------------------------------------------------------------------- |
+| Domain         | Immutable document model in ISO 32000 user space. No React, no pdf-lib.                |
+| Application    | Orchestrates ports. Returns `Result<T, PdfDomainError>`.                               |
 | Infrastructure | Parses operators (`Tj`, `TJ`, `Do`, `cm`, …), rewrites streams, embeds fonts/XObjects. |
-| Native | Rasterizes a page off-thread. Never owns the AST. |
-| Presentation | Converts PDF space ↔ screen space. Drag, pinch, inline text. |
+| Native         | Rasterizes a page off-thread. Never owns the AST.                                      |
+| Presentation   | Converts PDF space ↔ screen space. Drag, pinch, inline text.                           |
 
 UI components never import `pdf-lib`. The store talks only to use cases.
 
@@ -125,13 +125,13 @@ lossless export are unaffected.
 
 ### Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `npm test` | Jest + Testing Library (TDD suite) |
-| `npm run test:coverage` | Coverage with thresholds |
-| `npm run typecheck` | `tsc --noEmit`, strict + `noUncheckedIndexedAccess` |
-| `npx expo start` | Metro bundler |
-| `npm run build:web` | Static web export to `./dist` |
+| Command                 | Purpose                                             |
+| ----------------------- | --------------------------------------------------- |
+| `npm test`              | Jest + Testing Library (TDD suite)                  |
+| `npm run test:coverage` | Coverage with thresholds                            |
+| `npm run typecheck`     | `tsc --noEmit`, strict + `noUncheckedIndexedAccess` |
+| `npx expo start`        | Metro bundler                                       |
+| `npm run build:web`     | Static web export to `./dist`                       |
 
 ## TDD map
 
@@ -149,8 +149,15 @@ Fixtures are hand-rolled ISO 32000 files (`buildFixturePdf`), not objects that p
 ```ts
 type NativePdfEngineSpec = {
   getPageCount(path: string): Promise<number>;
-  getPageSize(path: string, pageIndex: number): Promise<{ width: number; height: number }>;
-  renderPage(path: string, pageIndex: number, scale: number): Promise<{
+  getPageSize(
+    path: string,
+    pageIndex: number,
+  ): Promise<{ width: number; height: number }>;
+  renderPage(
+    path: string,
+    pageIndex: number,
+    scale: number,
+  ): Promise<{
     uri: string;
     width: number;
     height: number;

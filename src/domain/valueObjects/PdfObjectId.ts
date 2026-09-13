@@ -2,8 +2,7 @@ import { PdfDomainError } from '@/domain/errors/PdfDomainError';
 
 export type PdfObjectId = string & { readonly __brand: 'PdfObjectId' };
 
-const OBJECT_ID_PATTERN =
-  /^page:\d+:(text|image|passthrough):\d+$/;
+const OBJECT_ID_PATTERN = /^page:\d+:(text|image|passthrough):\d+$/;
 
 export function pdfObjectId(value: string): PdfObjectId {
   if (!OBJECT_ID_PATTERN.test(value)) {

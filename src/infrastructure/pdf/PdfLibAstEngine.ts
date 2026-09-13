@@ -1,4 +1,9 @@
-import { PDFDocument, StandardFonts, type PDFImage, type PDFPage } from 'pdf-lib';
+import {
+  PDFDocument,
+  StandardFonts,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib';
 
 import { installBuffer } from '@/shared/installBuffer';
 
@@ -57,7 +62,10 @@ export class PdfLibAstEngine implements PdfAstEngine {
 
   async load(bytes: Uint8Array): Promise<PdfDocument> {
     if (bytes.length < 5) {
-      throw new PdfDomainError('INVALID_PDF', 'Buffer is too short to be a PDF');
+      throw new PdfDomainError(
+        'INVALID_PDF',
+        'Buffer is too short to be a PDF',
+      );
     }
     if (!startsWithPdfHeader(bytes)) {
       throw new PdfDomainError('INVALID_PDF', 'Missing %PDF- header');
@@ -113,7 +121,10 @@ export class PdfLibAstEngine implements PdfAstEngine {
       throw new PdfDomainError('EMPTY_TEXT', 'Text content must not be empty');
     }
     if (command.fontSize <= 0) {
-      throw new PdfDomainError('INVALID_FONT_SIZE', 'Font size must be positive');
+      throw new PdfDomainError(
+        'INVALID_FONT_SIZE',
+        'Font size must be positive',
+      );
     }
     getPage(document, command.pageIndex);
     const session = this.requireSession(document.id);
@@ -123,8 +134,9 @@ export class PdfLibAstEngine implements PdfAstEngine {
     ensureFontResource(page, session.pdf, fontName, font.ref);
 
     const fragments = this.pageFragments(session, command.pageIndex);
-    const ordinal = fragments.filter((fragment) => fragment.kind === 'text')
-      .length;
+    const ordinal = fragments.filter(
+      (fragment) => fragment.kind === 'text',
+    ).length;
     const node: PdfTextNode = {
       id: createPdfObjectId(command.pageIndex, 'text', ordinal),
       type: 'text',
@@ -159,14 +171,18 @@ export class PdfLibAstEngine implements PdfAstEngine {
       throw new PdfDomainError('EMPTY_TEXT', 'Text content must not be empty');
     }
     if (command.fontSize !== undefined && command.fontSize <= 0) {
-      throw new PdfDomainError('INVALID_FONT_SIZE', 'Font size must be positive');
+      throw new PdfDomainError(
+        'INVALID_FONT_SIZE',
+        'Font size must be positive',
+      );
     }
     const session = this.requireSession(document.id);
     const location = parsePdfObjectId(command.nodeId);
     const page = this.requireNativePage(session, location.pageIndex);
     const fragments = this.pageFragments(session, location.pageIndex);
     const index = fragments.findIndex(
-      (fragment) => fragment.kind === 'text' && fragment.node.id === command.nodeId,
+      (fragment) =>
+        fragment.kind === 'text' && fragment.node.id === command.nodeId,
     );
     const current = fragments[index];
     if (current === undefined || current.kind !== 'text') {
@@ -198,8 +214,9 @@ export class PdfLibAstEngine implements PdfAstEngine {
       command.mimeType,
     );
     const fragments = this.pageFragments(session, command.pageIndex);
-    const ordinal = fragments.filter((fragment) => fragment.kind === 'image')
-      .length;
+    const ordinal = fragments.filter(
+      (fragment) => fragment.kind === 'image',
+    ).length;
     const resourceName = `ImAdd${ordinal}`;
     ensureImageResource(page, session.pdf, resourceName, embedded.ref);
     const node: PdfImageNode = {
@@ -262,7 +279,10 @@ export class PdfLibAstEngine implements PdfAstEngine {
     return node;
   }
 
-  async deleteNode(document: PdfDocument, nodeId: PdfTextNode['id']): Promise<void> {
+  async deleteNode(
+    document: PdfDocument,
+    nodeId: PdfTextNode['id'],
+  ): Promise<void> {
     this.resolveNode(document, nodeId);
     const session = this.requireSession(document.id);
     const location = parsePdfObjectId(nodeId);
@@ -404,7 +424,10 @@ export class PdfLibAstEngine implements PdfAstEngine {
     return session;
   }
 
-  private requireNativePage(session: EngineSession, pageIndex: number): PDFPage {
+  private requireNativePage(
+    session: EngineSession,
+    pageIndex: number,
+  ): PDFPage {
     const page = session.pdf.getPages()[pageIndex];
     if (page === undefined) {
       throw new PdfDomainError(
@@ -505,4 +528,3 @@ export function createBlankPdfDocument(): Promise<Uint8Array> {
     return pdf.save();
   })();
 }
-

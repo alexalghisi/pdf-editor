@@ -22,10 +22,7 @@ export function getPage(document: PdfDocument, index: number): PdfPage {
   return page;
 }
 
-export function findNode(
-  document: PdfDocument,
-  nodeId: PdfObjectId,
-): PdfNode {
+export function findNode(document: PdfDocument, nodeId: PdfObjectId): PdfNode {
   for (const page of document.pages) {
     const match = page.nodes.find((node) => node.id === nodeId);
     if (match !== undefined) {
@@ -38,10 +35,7 @@ export function findNode(
   );
 }
 
-export function replacePage(
-  document: PdfDocument,
-  page: PdfPage,
-): PdfDocument {
+export function replacePage(document: PdfDocument, page: PdfPage): PdfDocument {
   return {
     ...document,
     pages: document.pages.map((candidate) =>

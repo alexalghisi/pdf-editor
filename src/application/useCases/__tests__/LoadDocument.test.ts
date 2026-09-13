@@ -25,10 +25,7 @@ describe('LoadDocument', () => {
       writeBinary: jest.fn(),
       cachePath: (name) => `file://${name}`,
     };
-    const useCase = new LoadDocument(
-      engine as PdfAstEngine,
-      fileSystem,
-    );
+    const useCase = new LoadDocument(engine as PdfAstEngine, fileSystem);
 
     const result = await useCase.execute('file://report.pdf');
 
@@ -46,10 +43,7 @@ describe('LoadDocument', () => {
       writeBinary: jest.fn(),
       cachePath: (name) => name,
     };
-    const useCase = new LoadDocument(
-      engine as PdfAstEngine,
-      fileSystem,
-    );
+    const useCase = new LoadDocument(engine as PdfAstEngine, fileSystem);
 
     const result = await useCase.execute('missing.pdf');
 
