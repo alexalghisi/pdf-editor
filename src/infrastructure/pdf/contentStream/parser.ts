@@ -20,7 +20,11 @@ export type ImageResource = {
 
 export type ContentFragment =
   | { readonly kind: 'text'; readonly node: PdfTextNode; readonly raw: string }
-  | { readonly kind: 'image'; readonly node: PdfImageNode; readonly raw: string }
+  | {
+      readonly kind: 'image';
+      readonly node: PdfImageNode;
+      readonly raw: string;
+    }
   | { readonly kind: 'passthrough'; readonly raw: string };
 
 export type ParseContentStreamInput = {
@@ -82,7 +86,10 @@ function tjArrayText(token: PdfToken | undefined): string {
     return '';
   }
   return token.value
-    .filter((item): item is { kind: 'string'; value: string } => item.kind === 'string')
+    .filter(
+      (item): item is { kind: 'string'; value: string } =>
+        item.kind === 'string',
+    )
     .map((item) => item.value)
     .join('');
 }
@@ -213,7 +220,10 @@ export function parseContentStream(
         e !== null &&
         f !== null
       ) {
-        graphics = { ...graphics, ctm: multiply(graphics.ctm, [a, b, c, d, e, f]) };
+        graphics = {
+          ...graphics,
+          ctm: multiply(graphics.ctm, [a, b, c, d, e, f]),
+        };
       }
       passthrough.push(...operands, token);
       operands.length = 0;

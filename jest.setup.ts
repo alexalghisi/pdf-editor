@@ -39,23 +39,16 @@ jest.mock('react-native-gesture-handler', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    GestureHandlerRootView: ({
-      children,
-    }: {
-      children: React.ReactNode;
-    }) => React.createElement(View, null, children),
+    GestureHandlerRootView: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(View, null, children),
     Gesture: {
       Pan: () => ({ onUpdate: () => ({}), onEnd: () => ({}) }),
       Pinch: () => ({ onUpdate: () => ({}), onEnd: () => ({}) }),
       Simultaneous: () => ({}),
     },
-    GestureDetector: ({ children }: { children: React.ReactNode }) =>
+    GestureDetector: ({ children }: { children: React.ReactNode }) => children,
+    PinchGestureHandler: ({ children }: { children: React.ReactNode }) =>
       children,
-    PinchGestureHandler: ({
-      children,
-    }: {
-      children: React.ReactNode;
-    }) => children,
     PanGestureHandler: ({ children }: { children: React.ReactNode }) =>
       children,
   };
@@ -66,8 +59,7 @@ jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   const inset = { top: 0, right: 0, bottom: 0, left: 0 };
   return {
-    SafeAreaProvider: ({ children }: { children: React.ReactNode }) =>
-      children,
+    SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
     SafeAreaView: ({
       children,
       style,

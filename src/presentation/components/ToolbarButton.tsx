@@ -9,7 +9,12 @@ type Props = {
   readonly disabled?: boolean;
 };
 
-export function ToolbarButton({ label, onPress, danger = false, disabled = false }: Props) {
+export function ToolbarButton({
+  label,
+  onPress,
+  danger = false,
+  disabled = false,
+}: Props) {
   return (
     <Pressable
       accessibilityRole="button"

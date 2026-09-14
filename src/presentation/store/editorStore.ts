@@ -4,7 +4,10 @@ import type { PdfDocument } from '@/domain/entities/PdfDocument';
 import { getPage } from '@/domain/entities/PdfDocument';
 import type { PdfNode } from '@/domain/entities/PdfNode';
 import { PdfDomainError } from '@/domain/errors/PdfDomainError';
-import type { AddImageCommand, AddTextCommand } from '@/domain/services/PdfAstEngine';
+import type {
+  AddImageCommand,
+  AddTextCommand,
+} from '@/domain/services/PdfAstEngine';
 import type { PdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { rect, type Rect } from '@/domain/valueObjects/Rect';
 import { BLACK, type RgbColor } from '@/domain/valueObjects/RgbColor';
@@ -26,9 +29,18 @@ export type EditorState = {
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
-  addText: (content: string, bounds?: Rect, fontSize?: number, color?: RgbColor) => Promise<void>;
+  addText: (
+    content: string,
+    bounds?: Rect,
+    fontSize?: number,
+    color?: RgbColor,
+  ) => Promise<void>;
   updateText: (nodeId: PdfObjectId, content: string) => Promise<void>;
-  addImage: (imageBytes: Uint8Array, mimeType: AddImageCommand['mimeType'], bounds?: Rect) => Promise<void>;
+  addImage: (
+    imageBytes: Uint8Array,
+    mimeType: AddImageCommand['mimeType'],
+    bounds?: Rect,
+  ) => Promise<void>;
   deleteSelected: () => Promise<void>;
   moveNode: (nodeId: PdfObjectId, bounds: Rect) => Promise<void>;
   selectNode: (nodeId: PdfObjectId | null) => void;

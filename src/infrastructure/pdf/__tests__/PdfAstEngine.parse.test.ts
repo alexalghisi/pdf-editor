@@ -104,7 +104,9 @@ describe('PdfAstEngine.parse', () => {
   });
 
   it('rejects a truncated xref table', async () => {
-    const bytes = new TextEncoder().encode('%PDF-1.4\n1 0 obj\n<< >>\nendobj\n');
+    const bytes = new TextEncoder().encode(
+      '%PDF-1.4\n1 0 obj\n<< >>\nendobj\n',
+    );
 
     await expect(engine.load(bytes)).rejects.toMatchObject({
       code: 'INVALID_PDF',

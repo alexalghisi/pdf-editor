@@ -58,9 +58,7 @@ describe('MutateDocument', () => {
     const engine: Pick<PdfAstEngine, 'deleteNode'> = {
       deleteNode: jest
         .fn()
-        .mockRejectedValue(
-          new PdfDomainError('NODE_NOT_FOUND', 'missing'),
-        ),
+        .mockRejectedValue(new PdfDomainError('NODE_NOT_FOUND', 'missing')),
     };
     const useCase = new MutateDocument(engine as PdfAstEngine);
 

@@ -12,7 +12,7 @@ function crc32(buf) {
       c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
     }
   }
-  return (~c) >>> 0;
+  return ~c >>> 0;
 }
 
 function chunk(type, data) {

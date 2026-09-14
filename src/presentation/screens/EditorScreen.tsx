@@ -41,7 +41,10 @@ export function EditorScreen() {
   const insertImage = async (): Promise<void> => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Photos', 'Photo library access is required to insert an image.');
+      Alert.alert(
+        'Photos',
+        'Photo library access is required to insert an image.',
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -58,7 +61,8 @@ export function EditorScreen() {
       return;
     }
     const bytes = new Uint8Array(Buffer.from(asset.base64, 'base64'));
-    const mimeType = asset.mimeType === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+    const mimeType =
+      asset.mimeType === 'image/jpeg' ? 'image/jpeg' : 'image/png';
     await addImage(bytes, mimeType);
   };
 
@@ -117,14 +121,8 @@ export function EditorScreen() {
             void deleteSelected();
           }}
         />
-        <ToolbarButton
-          label="−"
-          onPress={() => setZoom(zoom - 0.2)}
-        />
-        <ToolbarButton
-          label="+"
-          onPress={() => setZoom(zoom + 0.2)}
-        />
+        <ToolbarButton label="−" onPress={() => setZoom(zoom - 0.2)} />
+        <ToolbarButton label="+" onPress={() => setZoom(zoom + 0.2)} />
         <ToolbarButton
           label="Prev"
           disabled={currentPageIndex === 0}
