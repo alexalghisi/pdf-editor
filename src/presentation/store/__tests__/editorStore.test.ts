@@ -257,6 +257,33 @@ describe('useEditorStore', () => {
       });
     });
 
+    it('stacks new text below the text already on the page', async () => {
+      withDocument(documentStub([textNode(1), textNode(2)]));
+      mockMutateAddText.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addText('Third');
+
+      expect(mockMutateAddText).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ bounds: rect(72, 792 - 120 - 48, 200, 16) }),
+      );
+    });
+
+    it('never stacks new text below the bottom margin', async () => {
+      const crowded = Array.from({ length: 40 }, (_, index) =>
+        textNode(index + 1),
+      );
+      withDocument(documentStub(crowded));
+      mockMutateAddText.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addText('Overflow');
+
+      expect(mockMutateAddText).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ bounds: rect(72, 72, 200, 16) }),
+      );
+    });
+
     it('honours explicit bounds, size and colour', async () => {
       withDocument(documentStub());
       mockMutateAddText.mockResolvedValue(ok(documentStub()));
