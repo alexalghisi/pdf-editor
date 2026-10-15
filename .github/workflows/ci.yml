@@ -32,3 +32,6 @@ jobs:
 
       - name: Unit tests
         run: npm run test -- --ci --coverage
+
+      - name: Web build
+        run: npm run build:web

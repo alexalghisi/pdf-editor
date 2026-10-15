@@ -3,7 +3,18 @@
 
 # PDF Editor
 
+[![CI](https://github.com/alexalghisi/pdf-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/alexalghisi/pdf-editor/actions/workflows/ci.yml)
+[![Deploy](https://github.com/alexalghisi/pdf-editor/actions/workflows/pages.yml/badge.svg)](https://github.com/alexalghisi/pdf-editor/actions/workflows/pages.yml)
+
+**▶ Open the app: https://alexalghisi.github.io/pdf-editor/** — runs in any modern browser on desktop, Android and iPhone. No install needed.
+
 A professional React Native PDF editor that loads, parses, and **rewrites the PDF content stream**. Text and images are first-class nodes in the document AST. Mutations are not flattened annotations.
+
+| Desktop browser                           | Phone browser                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| ![Editor on desktop](docs/editor-web.jpg) | <img src="docs/editor-mobile.jpg" alt="Editor on a phone" width="260"> |
+
+The page preview is the real PDF, re-rendered after each edit. Here a blank letter page has two text blocks and an image. They were inserted, typed and dragged in place, and the result exports as a regular PDF.
 
 The project is built with TDD, Clean Architecture, and strict TypeScript. Page rasterization runs in a JSI/Expo native module (PDFKit on iOS, `PdfRenderer` on Android) so large documents never block the JS thread.
 
@@ -81,8 +92,13 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Add, update, delete, and move text and images by rewriting the page content stream.
 - Preserve vector art as passthrough operator groups.
 - Lossless save that restores title, author, creator, and producer.
-- Interactive canvas: pinch-to-zoom, drag nodes, long-press to edit text.
-- Native page preview when a dev client / release build includes `PdfNativeEngine`.
+- Interactive canvas: tap to select, drag to move, tap a selected text again to edit it, pinch or `−`/`+` to zoom.
+- Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
+
+### Known limitations
+
+- Existing text in fonts with a two-byte encoding (`Identity-H`, the usual output of browsers and office suites) is extracted as glyph ids. You can move or delete it, but in-place text edits are only reliable for simple-encoded and newly added text.
+- Text drawn inside form XObjects is rendered but not yet exposed as editable nodes.
 
 ## Setup
 
@@ -119,9 +135,10 @@ npx expo start --web
 ```
 
 On web, document/image pickers hand back `blob:`/`data:` URIs, and a save is
-delivered as a browser download of the edited PDF. Native page rasterization is
-absent on the web and degrades to the paper surface; structural editing and
-lossless export are unaffected.
+delivered as a browser download of the edited PDF. Pages are rasterized by
+pdf.js in a module worker (`public/pdf.worker.min.mjs`, copied from
+`node_modules` on `npm install`). Every push to `main` rebuilds and redeploys the
+site through the `Deploy web app` workflow.
 
 ### Scripts
 
