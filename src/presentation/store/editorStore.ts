@@ -46,6 +46,7 @@ export type EditorState = {
   selectNode: (nodeId: PdfObjectId | null) => void;
   setPage: (index: number) => void;
   setZoom: (zoom: number) => void;
+  renderCurrentPage: () => Promise<void>;
   currentPageNodes: () => readonly PdfNode[];
 };
 
@@ -58,6 +59,10 @@ function defaultImageBounds(document: PdfDocument, pageIndex: number): Rect {
   const page = getPage(document, pageIndex);
   return rect(72, page.mediaBox.height / 2 - 80, 160, 160);
 }
+
+const RASTER_SCALE = 2;
+
+let latestRenderTicket = 0;
 
 async function applyResult(
   set: (partial: Partial<EditorState>) => void,
@@ -102,6 +107,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       document: result.value,
       fileUri: uri,
       fileName,
+      rasterUri: '',
       currentPageIndex: 0,
       selectedNodeId: null,
       status: 'idle',
@@ -121,6 +127,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       document: result.value,
       fileUri: null,
       fileName: 'Untitled.pdf',
+      rasterUri: '',
       currentPageIndex: 0,
       selectedNodeId: null,
       status: 'idle',
@@ -257,6 +264,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setZoom(zoom) {
     set({ zoom: Math.min(4, Math.max(0.4, zoom)) });
+  },
+
+  async renderCurrentPage() {
+    const { document, currentPageIndex } = get();
+    if (document === null) {
+      return;
+    }
+    latestRenderTicket += 1;
+    const ticket = latestRenderTicket;
+    const result = await getAppContainer().renderPage.execute(
+      document,
+      currentPageIndex,
+      RASTER_SCALE,
+    );
+    if (ticket !== latestRenderTicket) {
+      return;
+    }
+    if (!result.ok) {
+      set({ rasterUri: '', errorMessage: result.error.message });
+      return;
+    }
+    set({ rasterUri: result.value.uri });
   },
 
   currentPageNodes() {
