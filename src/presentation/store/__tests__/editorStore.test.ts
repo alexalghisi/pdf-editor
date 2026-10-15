@@ -18,6 +18,7 @@ const mockMutateAddImage = jest.fn();
 const mockMutateDeleteNode = jest.fn();
 const mockMutateMoveNode = jest.fn();
 const mockCreateBlank = jest.fn();
+const mockRenderPage = jest.fn();
 
 jest.mock('@/infrastructure/di/container', () => {
   const actual = jest.requireActual<
@@ -45,6 +46,7 @@ jest.mock('@/infrastructure/di/container', () => {
         deleteNode: mockMutateDeleteNode,
         moveNode: mockMutateMoveNode,
       },
+      renderPage: { execute: mockRenderPage },
     }),
   };
 });
@@ -456,6 +458,59 @@ describe('useEditorStore', () => {
       const nodes = useEditorStore.getState().currentPageNodes();
 
       expect(nodes.map((node) => node.id)).toEqual([nodeId(1), nodeId(2)]);
+    });
+  });
+
+  describe('renderCurrentPage', () => {
+    it('does nothing with no document open', async () => {
+      await useEditorStore.getState().renderCurrentPage();
+
+      expect(mockRenderPage).not.toHaveBeenCalled();
+    });
+
+    it('stores the raster of the current page', async () => {
+      const document = documentStub();
+      withDocument(document);
+      mockRenderPage.mockResolvedValue(
+        ok({ uri: 'data:image/png;base64,AA', width: 2, height: 2 }),
+      );
+
+      await useEditorStore.getState().renderCurrentPage();
+
+      expect(mockRenderPage).toHaveBeenCalledWith(document, 0, 2);
+      expect(useEditorStore.getState().rasterUri).toBe(
+        'data:image/png;base64,AA',
+      );
+    });
+
+    it('keeps only the latest raster when renders overlap', async () => {
+      withDocument(documentStub());
+      let finishStale: (value: unknown) => void = () => undefined;
+      mockRenderPage
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            finishStale = resolve;
+          }),
+        )
+        .mockResolvedValueOnce(ok({ uri: 'fresh', width: 1, height: 1 }));
+
+      const stale = useEditorStore.getState().renderCurrentPage();
+      await useEditorStore.getState().renderCurrentPage();
+      finishStale(ok({ uri: 'stale', width: 1, height: 1 }));
+      await stale;
+
+      expect(useEditorStore.getState().rasterUri).toBe('fresh');
+    });
+
+    it('falls back to the bare page and reports a failed render', async () => {
+      withDocument(documentStub());
+      useEditorStore.setState({ rasterUri: 'old' });
+      mockRenderPage.mockResolvedValue(err(failure));
+
+      await useEditorStore.getState().renderCurrentPage();
+
+      expect(useEditorStore.getState().rasterUri).toBe('');
+      expect(useEditorStore.getState().errorMessage).toBe('no such node');
     });
   });
 });

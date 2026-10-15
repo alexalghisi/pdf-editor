@@ -5,12 +5,13 @@ export type PageRenderResult = {
 };
 
 /**
- * Native rasterizer contract (JSI/TurboModule). Implementations must
- * decode off the JS thread and never hold decoded bitmaps after return.
+ * Rasterizer contract. Implementations receive the serialized document so the
+ * preview always reflects the latest content-stream edits, and must never hold
+ * decoded bitmaps after returning.
  */
 export interface PageRendererPort {
   renderPage(
-    filePath: string,
+    pdfBytes: Uint8Array,
     pageIndex: number,
     scale: number,
   ): Promise<PageRenderResult>;
