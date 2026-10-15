@@ -1,21 +1,24 @@
 import { Platform } from 'react-native';
 
 import type { FileSystemPort } from '@/application/ports/FileSystemPort';
+import type { PageRendererPort } from '@/application/ports/PageRendererPort';
 import { LoadDocument } from '@/application/useCases/LoadDocument';
 import { MutateDocument } from '@/application/useCases/MutateDocument';
+import { RenderPage } from '@/application/useCases/RenderPage';
 import { SaveDocument } from '@/application/useCases/SaveDocument';
 import { ExpoFileSystemAdapter } from '@/infrastructure/fs/ExpoFileSystemAdapter';
 import { WebFileSystemAdapter } from '@/infrastructure/fs/WebFileSystemAdapter';
-import { NativePageRenderer } from '@/infrastructure/native/NativePageRenderer';
+import { createPageRenderer } from '@/infrastructure/di/createPageRenderer';
 import { PdfLibAstEngine } from '@/infrastructure/pdf/PdfLibAstEngine';
 
 export type AppContainer = {
   readonly engine: PdfLibAstEngine;
   readonly fileSystem: FileSystemPort;
-  readonly renderer: NativePageRenderer;
+  readonly renderer: PageRendererPort;
   readonly loadDocument: LoadDocument;
   readonly saveDocument: SaveDocument;
   readonly mutateDocument: MutateDocument;
+  readonly renderPage: RenderPage;
 };
 
 function createFileSystem(): FileSystemPort {
@@ -27,7 +30,7 @@ function createFileSystem(): FileSystemPort {
 export function createAppContainer(): AppContainer {
   const engine = new PdfLibAstEngine();
   const fileSystem = createFileSystem();
-  const renderer = new NativePageRenderer();
+  const renderer = createPageRenderer(fileSystem);
   return {
     engine,
     fileSystem,
@@ -35,6 +38,7 @@ export function createAppContainer(): AppContainer {
     loadDocument: new LoadDocument(engine, fileSystem),
     saveDocument: new SaveDocument(engine, fileSystem),
     mutateDocument: new MutateDocument(engine),
+    renderPage: new RenderPage(engine, renderer),
   };
 }
 

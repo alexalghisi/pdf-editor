@@ -17,6 +17,7 @@ type Props = {
   readonly node: PdfTextNode;
   readonly mediaBox: Rect;
   readonly scale: number;
+  readonly showContent: boolean;
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
@@ -27,6 +28,7 @@ export function TextNodeView({
   node,
   mediaBox,
   scale,
+  showContent,
   selected,
   onSelect,
   onMove,
@@ -93,7 +95,9 @@ export function TextNodeView({
         >
           <Text
             style={{
-              color: `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`,
+              color: showContent
+                ? `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`
+                : 'transparent',
               fontSize: node.fontSize * scale,
             }}
           >

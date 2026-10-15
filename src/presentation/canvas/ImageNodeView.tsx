@@ -10,6 +10,7 @@ type Props = {
   readonly node: PdfImageNode;
   readonly mediaBox: Rect;
   readonly scale: number;
+  readonly showContent: boolean;
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
@@ -19,6 +20,7 @@ export function ImageNodeView({
   node,
   mediaBox,
   scale,
+  showContent,
   selected,
   onSelect,
   onMove,
@@ -60,7 +62,7 @@ export function ImageNodeView({
       ]}
     >
       <Pressable onPress={onSelect} style={styles.fill}>
-        <View style={styles.placeholder} />
+        {showContent ? <View style={styles.placeholder} /> : null}
       </Pressable>
     </View>
   );

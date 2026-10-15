@@ -34,6 +34,8 @@ export function PdfCanvas({ page, rasterUri }: Props) {
   const pageWidth = page.mediaBox.width * scale;
   const pageHeight = page.mediaBox.height * scale;
 
+  const showContent = rasterUri.length === 0;
+
   const onMove = (nodeId: PdfObjectId, bounds: Rect): void => {
     void moveNode(nodeId, bounds);
   };
@@ -63,6 +65,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
                   node={node}
                   mediaBox={page.mediaBox}
                   scale={scale}
+                  showContent={showContent}
                   selected={selectedNodeId === node.id}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
@@ -76,6 +79,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
                   node={node}
                   mediaBox={page.mediaBox}
                   scale={scale}
+                  showContent={showContent}
                   selected={selectedNodeId === node.id}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
