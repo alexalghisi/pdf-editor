@@ -49,6 +49,7 @@ export type EditorState = {
   ) => Promise<void>;
   deleteSelected: () => Promise<void>;
   moveNode: (nodeId: PdfObjectId, bounds: Rect) => Promise<void>;
+  syncPreview: () => Promise<void>;
   selectNode: (nodeId: PdfObjectId | null) => void;
   setPage: (index: number) => void;
   setZoom: (zoom: number) => void;
@@ -100,11 +101,14 @@ async function applyResult(
   set: (partial: Partial<EditorState>) => void,
   get: () => EditorState,
   work: () => Promise<PdfDocument>,
+  preview = true,
 ): Promise<void> {
   try {
     const document = await work();
     set({ document, status: 'idle', errorMessage: null });
-    await refreshPreview(set, get);
+    if (preview) {
+      await refreshPreview(set, get);
+    }
   } catch (error) {
     set({
       status: 'error',
@@ -269,17 +273,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (document === null) {
       return;
     }
-    await applyResult(set, get, async () => {
-      const result = await getAppContainer().mutateDocument.moveNode(
-        document,
-        nodeId,
-        bounds,
-      );
-      if (!result.ok) {
-        throw result.error;
-      }
-      return result.value;
-    });
+    await applyResult(
+      set,
+      get,
+      async () => {
+        const result = await getAppContainer().mutateDocument.moveNode(
+          document,
+          nodeId,
+          bounds,
+        );
+        if (!result.ok) {
+          throw result.error;
+        }
+        return result.value;
+      },
+      false,
+    );
+  },
+
+  async syncPreview() {
+    await refreshPreview(set, get);
   },
 
   selectNode(nodeId) {

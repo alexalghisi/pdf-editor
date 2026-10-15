@@ -28,6 +28,7 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
   const moveNode = useEditorStore((state) => state.moveNode);
+  const syncPreview = useEditorStore((state) => state.syncPreview);
   const updateText = useEditorStore((state) => state.updateText);
   const setZoom = useEditorStore((state) => state.setZoom);
 
@@ -39,6 +40,10 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
 
   const onMove = (nodeId: PdfObjectId, bounds: Rect): void => {
     void moveNode(nodeId, bounds);
+  };
+
+  const onMoveEnd = (): void => {
+    void syncPreview();
   };
 
   return (
@@ -74,9 +79,10 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
                   mediaBox={page.mediaBox}
                   scale={scale}
                   selected={selectedNodeId === node.id}
-                  paintContent={!hasPreview}
+                  paintContent={!hasPreview || selectedNodeId === node.id}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
+                  onMoveEnd={onMoveEnd}
                   onCommitText={(content) => {
                     void updateText(node.id, content);
                   }}
@@ -91,6 +97,7 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
                   paintPlaceholder={!hasPreview}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
+                  onMoveEnd={onMoveEnd}
                 />
               ),
             )}
