@@ -9,6 +9,7 @@ import { PinchGestureHandler } from 'react-native-gesture-handler';
 
 import type { PdfPage } from '@/domain/entities/PdfPage';
 import { ImageNodeView } from '@/presentation/canvas/ImageNodeView';
+import { PdfPagePreview } from '@/presentation/canvas/PdfPagePreview';
 import { TextNodeView } from '@/presentation/canvas/TextNodeView';
 import { useEditorStore } from '@/presentation/store/editorStore';
 import { colors } from '@/presentation/theme';
@@ -18,9 +19,10 @@ import type { Rect } from '@/domain/valueObjects/Rect';
 type Props = {
   readonly page: PdfPage;
   readonly rasterUri: string;
+  readonly pdfPreviewUri: string;
 };
 
-export function PdfCanvas({ page, rasterUri }: Props) {
+export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const zoom = useEditorStore((state) => state.zoom);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
@@ -33,6 +35,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
   const scale = fitScale * zoom;
   const pageWidth = page.mediaBox.width * scale;
   const pageHeight = page.mediaBox.height * scale;
+  const hasPreview = rasterUri.length > 0 || pdfPreviewUri.length > 0;
 
   const onMove = (nodeId: PdfObjectId, bounds: Rect): void => {
     void moveNode(nodeId, bounds);
@@ -55,7 +58,14 @@ export function PdfCanvas({ page, rasterUri }: Props) {
                 style={StyleSheet.absoluteFill}
                 resizeMode="stretch"
               />
-            ) : null}
+            ) : (
+              <PdfPagePreview
+                uri={pdfPreviewUri}
+                pageIndex={page.index}
+                width={pageWidth}
+                height={pageHeight}
+              />
+            )}
             {page.nodes.map((node) =>
               node.type === 'text' ? (
                 <TextNodeView
@@ -64,6 +74,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
                   mediaBox={page.mediaBox}
                   scale={scale}
                   selected={selectedNodeId === node.id}
+                  paintContent={!hasPreview}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
                   onCommitText={(content) => {
@@ -77,6 +88,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
                   mediaBox={page.mediaBox}
                   scale={scale}
                   selected={selectedNodeId === node.id}
+                  paintPlaceholder={!hasPreview}
                   onSelect={() => selectNode(node.id)}
                   onMove={(bounds) => onMove(node.id, bounds)}
                 />
@@ -97,7 +109,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   paper: {
+    position: 'relative',
     backgroundColor: colors.paper,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 16,

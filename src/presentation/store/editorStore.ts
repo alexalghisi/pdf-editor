@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 
 import type { PdfDocument } from '@/domain/entities/PdfDocument';
@@ -13,6 +14,10 @@ import { rect, type Rect } from '@/domain/valueObjects/Rect';
 import { BLACK, type RgbColor } from '@/domain/valueObjects/RgbColor';
 import { getAppContainer } from '@/infrastructure/di/container';
 import { createBlankPdfDocument } from '@/infrastructure/pdf/PdfLibAstEngine';
+import {
+  createPdfObjectUrl,
+  revokePdfObjectUrl,
+} from '@/infrastructure/preview/pdfObjectUrl';
 
 export type EditorStatus = 'idle' | 'loading' | 'saving' | 'error';
 
@@ -26,6 +31,7 @@ export type EditorState = {
   readonly status: EditorStatus;
   readonly errorMessage: string | null;
   readonly rasterUri: string;
+  readonly pdfPreviewUri: string;
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
@@ -59,13 +65,46 @@ function defaultImageBounds(document: PdfDocument, pageIndex: number): Rect {
   return rect(72, page.mediaBox.height / 2 - 80, 160, 160);
 }
 
+async function refreshPreview(
+  set: (partial: Partial<EditorState>) => void,
+  get: () => EditorState,
+): Promise<void> {
+  const { document, currentPageIndex, pdfPreviewUri } = get();
+  if (document === null) {
+    revokePdfObjectUrl(pdfPreviewUri);
+    set({ rasterUri: '', pdfPreviewUri: '' });
+    return;
+  }
+  const { engine, renderer, fileSystem } = getAppContainer();
+  try {
+    const bytes = await engine.serialize(document);
+    if (Platform.OS === 'web') {
+      revokePdfObjectUrl(pdfPreviewUri);
+      set({
+        rasterUri: '',
+        pdfPreviewUri: createPdfObjectUrl(bytes) ?? '',
+      });
+      return;
+    }
+    const path = fileSystem.cachePath(`preview-${document.id}.pdf`);
+    await fileSystem.writeBinary(path, bytes);
+    const rendered = await renderer.renderPage(path, currentPageIndex, 2);
+    revokePdfObjectUrl(pdfPreviewUri);
+    set({ rasterUri: rendered.uri, pdfPreviewUri: '' });
+  } catch {
+    set({ rasterUri: '', pdfPreviewUri: '' });
+  }
+}
+
 async function applyResult(
   set: (partial: Partial<EditorState>) => void,
+  get: () => EditorState,
   work: () => Promise<PdfDocument>,
 ): Promise<void> {
   try {
     const document = await work();
     set({ document, status: 'idle', errorMessage: null });
+    await refreshPreview(set, get);
   } catch (error) {
     set({
       status: 'error',
@@ -89,6 +128,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   status: 'idle',
   errorMessage: null,
   rasterUri: '',
+  pdfPreviewUri: '',
 
   async openFromUri(uri, fileName) {
     const { loadDocument } = getAppContainer();
@@ -106,6 +146,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedNodeId: null,
       status: 'idle',
     });
+    await refreshPreview(set, get);
   },
 
   async createBlank() {
@@ -125,6 +166,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedNodeId: null,
       status: 'idle',
     });
+    await refreshPreview(set, get);
   },
 
   async save() {
@@ -156,7 +198,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       fontSize,
       color,
     };
-    await applyResult(set, async () => {
+    await applyResult(set, get, async () => {
       const result = await getAppContainer().mutateDocument.addText(
         document,
         command,
@@ -173,7 +215,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (document === null) {
       return;
     }
-    await applyResult(set, async () => {
+    await applyResult(set, get, async () => {
       const result = await getAppContainer().mutateDocument.updateText(
         document,
         { nodeId, content },
@@ -190,7 +232,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (document === null) {
       return;
     }
-    await applyResult(set, async () => {
+    await applyResult(set, get, async () => {
       const result = await getAppContainer().mutateDocument.addImage(document, {
         pageIndex: currentPageIndex,
         imageBytes,
@@ -209,7 +251,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (document === null || selectedNodeId === null) {
       return;
     }
-    await applyResult(set, async () => {
+    await applyResult(set, get, async () => {
       const result = await getAppContainer().mutateDocument.deleteNode(
         document,
         selectedNodeId,
@@ -227,7 +269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (document === null) {
       return;
     }
-    await applyResult(set, async () => {
+    await applyResult(set, get, async () => {
       const result = await getAppContainer().mutateDocument.moveNode(
         document,
         nodeId,
@@ -253,6 +295,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
     set({ currentPageIndex: index, selectedNodeId: null });
+    return refreshPreview(set, get);
   },
 
   setZoom(zoom) {
