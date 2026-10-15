@@ -51,9 +51,13 @@ export type EditorState = {
   currentPageNodes: () => readonly PdfNode[];
 };
 
+const TEXT_LINE_STEP = 24;
+
 function defaultTextBounds(document: PdfDocument, pageIndex: number): Rect {
   const page = getPage(document, pageIndex);
-  return rect(72, page.mediaBox.height - 120, 200, 16);
+  const lines = page.nodes.filter((node) => node.type === 'text').length;
+  const top = page.mediaBox.height - 120;
+  return rect(72, Math.max(72, top - lines * TEXT_LINE_STEP), 200, 16);
 }
 
 function defaultImageBounds(document: PdfDocument, pageIndex: number): Rect {
