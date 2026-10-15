@@ -1,17 +1,13 @@
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { PinchGestureHandler } from 'react-native-gesture-handler';
+import { useRef, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 
 import type { PdfPage } from '@/domain/entities/PdfPage';
+import { fitScale } from '@/presentation/canvas/coordinates';
 import { ImageNodeView } from '@/presentation/canvas/ImageNodeView';
 import { TextNodeView } from '@/presentation/canvas/TextNodeView';
 import { useEditorStore } from '@/presentation/store/editorStore';
-import { colors } from '@/presentation/theme';
+import { colors, spacing } from '@/presentation/theme';
 import type { PdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import type { Rect } from '@/domain/valueObjects/Rect';
 
@@ -21,7 +17,8 @@ type Props = {
 };
 
 export function PdfCanvas({ page, rasterUri }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const pinchOrigin = useRef(1);
   const zoom = useEditorStore((state) => state.zoom);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -29,65 +26,82 @@ export function PdfCanvas({ page, rasterUri }: Props) {
   const updateText = useEditorStore((state) => state.updateText);
   const setZoom = useEditorStore((state) => state.setZoom);
 
-  const fitScale = (windowWidth - 32) / page.mediaBox.width;
-  const scale = fitScale * zoom;
+  const scale = fitScale(page.mediaBox, stage, spacing.lg) * zoom;
   const pageWidth = page.mediaBox.width * scale;
   const pageHeight = page.mediaBox.height * scale;
-
   const showContent = rasterUri.length === 0;
 
-  const onMove = (nodeId: PdfObjectId, bounds: Rect): void => {
-    void moveNode(nodeId, bounds);
-  };
+  const onMove = (nodeId: PdfObjectId, bounds: Rect): Promise<void> =>
+    moveNode(nodeId, bounds);
 
   return (
     <PinchGestureHandler
+      onHandlerStateChange={(event) => {
+        if (event.nativeEvent.state === State.BEGAN) {
+          pinchOrigin.current = zoom;
+        }
+      }}
       onGestureEvent={(event) => {
-        setZoom(event.nativeEvent.scale);
+        setZoom(pinchOrigin.current * event.nativeEvent.scale);
       }}
     >
-      <View style={styles.stage}>
-        <Pressable onPress={() => selectNode(null)}>
-          <View
-            style={[styles.paper, { width: pageWidth, height: pageHeight }]}
-          >
-            {rasterUri.length > 0 ? (
-              <Image
-                source={{ uri: rasterUri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="stretch"
-              />
+      <View
+        style={styles.stage}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setStage({ width, height });
+        }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollFill}>
+          <ScrollView horizontal contentContainerStyle={styles.scrollContent}>
+            {scale > 0 ? (
+              <Pressable onPress={() => selectNode(null)}>
+                <View
+                  style={[
+                    styles.paper,
+                    { width: pageWidth, height: pageHeight },
+                  ]}
+                >
+                  {rasterUri.length > 0 ? (
+                    <Image
+                      source={{ uri: rasterUri }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="stretch"
+                    />
+                  ) : null}
+                  {page.nodes.map((node) =>
+                    node.type === 'text' ? (
+                      <TextNodeView
+                        key={node.id}
+                        node={node}
+                        mediaBox={page.mediaBox}
+                        scale={scale}
+                        showContent={showContent}
+                        selected={selectedNodeId === node.id}
+                        onSelect={() => selectNode(node.id)}
+                        onMove={(bounds) => onMove(node.id, bounds)}
+                        onCommitText={(content) => {
+                          void updateText(node.id, content);
+                        }}
+                      />
+                    ) : (
+                      <ImageNodeView
+                        key={node.id}
+                        node={node}
+                        mediaBox={page.mediaBox}
+                        scale={scale}
+                        showContent={showContent}
+                        selected={selectedNodeId === node.id}
+                        onSelect={() => selectNode(node.id)}
+                        onMove={(bounds) => onMove(node.id, bounds)}
+                      />
+                    ),
+                  )}
+                </View>
+              </Pressable>
             ) : null}
-            {page.nodes.map((node) =>
-              node.type === 'text' ? (
-                <TextNodeView
-                  key={node.id}
-                  node={node}
-                  mediaBox={page.mediaBox}
-                  scale={scale}
-                  showContent={showContent}
-                  selected={selectedNodeId === node.id}
-                  onSelect={() => selectNode(node.id)}
-                  onMove={(bounds) => onMove(node.id, bounds)}
-                  onCommitText={(content) => {
-                    void updateText(node.id, content);
-                  }}
-                />
-              ) : (
-                <ImageNodeView
-                  key={node.id}
-                  node={node}
-                  mediaBox={page.mediaBox}
-                  scale={scale}
-                  showContent={showContent}
-                  selected={selectedNodeId === node.id}
-                  onSelect={() => selectNode(node.id)}
-                  onMove={(bounds) => onMove(node.id, bounds)}
-                />
-              ),
-            )}
-          </View>
-        </Pressable>
+          </ScrollView>
+        </ScrollView>
       </View>
     </PinchGestureHandler>
   );
@@ -96,9 +110,15 @@ export function PdfCanvas({ page, rasterUri }: Props) {
 const styles = StyleSheet.create({
   stage: {
     flex: 1,
+  },
+  scrollFill: {
+    flexGrow: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: spacing.lg,
   },
   paper: {
     backgroundColor: colors.paper,
