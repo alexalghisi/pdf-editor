@@ -1,16 +1,13 @@
-import { useRef, useState } from 'react';
-import {
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
 import type { Rect } from '@/domain/valueObjects/Rect';
-import { pdfToScreen, screenToPdf } from '@/presentation/canvas/coordinates';
+import {
+  offsetByScreenDelta,
+  pdfToScreen,
+} from '@/presentation/canvas/coordinates';
+import { useNodeDrag } from '@/presentation/canvas/useNodeDrag';
 import { colors } from '@/presentation/theme';
 
 type Props = {
@@ -20,7 +17,7 @@ type Props = {
   readonly showContent: boolean;
   readonly selected: boolean;
   readonly onSelect: () => void;
-  readonly onMove: (bounds: Rect) => void;
+  readonly onMove: (bounds: Rect) => Promise<void>;
   readonly onCommitText: (content: string) => void;
 };
 
@@ -37,43 +34,37 @@ export function TextNodeView({
   const screen = pdfToScreen(node.bounds, mediaBox, scale);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(node.content);
-  const origin = useRef(node.bounds);
+  const { panHandlers, offset, dragging, resetDrop, wasDropped } = useNodeDrag(
+    selected && !editing,
+    (drop) => onMove(offsetByScreenDelta(node.bounds, drop, scale)),
+  );
 
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => selected && !editing,
-      onMoveShouldSetPanResponder: () => selected && !editing,
-      onPanResponderGrant: () => {
-        origin.current = node.bounds;
-      },
-      onPanResponderMove: (_event, gesture) => {
-        const nextScreen = {
-          ...pdfToScreen(origin.current, mediaBox, scale),
-          x: pdfToScreen(origin.current, mediaBox, scale).x + gesture.dx,
-          y: pdfToScreen(origin.current, mediaBox, scale).y + gesture.dy,
-        };
-        onMove(screenToPdf(nextScreen, mediaBox, scale));
-      },
-    }),
-  ).current;
+  const startEditing = (): void => {
+    onSelect();
+    setDraft(node.content);
+    setEditing(true);
+  };
 
   return (
     <View
-      {...pan.panHandlers}
+      {...panHandlers}
       style={[
         styles.node,
         {
-          left: screen.x,
-          top: screen.y,
+          left: screen.x + offset.dx,
+          top: screen.y + offset.dy,
           minWidth: screen.width,
           minHeight: screen.height,
         },
         selected && styles.selected,
+        editing && styles.editing,
       ]}
     >
       {editing ? (
         <TextInput
           autoFocus
+          selectTextOnFocus
+          accessibilityLabel="Edit text"
           value={draft}
           onChangeText={setDraft}
           onBlur={() => {
@@ -86,18 +77,25 @@ export function TextNodeView({
         />
       ) : (
         <Pressable
-          onPress={onSelect}
-          onLongPress={() => {
-            onSelect();
-            setDraft(node.content);
-            setEditing(true);
+          onPressIn={resetDrop}
+          onPress={() => {
+            if (wasDropped()) {
+              return;
+            }
+            if (selected) {
+              startEditing();
+            } else {
+              onSelect();
+            }
           }}
+          onLongPress={startEditing}
         >
           <Text
             style={{
-              color: showContent
-                ? `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`
-                : 'transparent',
+              color:
+                showContent || dragging
+                  ? `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`
+                  : 'transparent',
               fontSize: node.fontSize * scale,
             }}
           >
@@ -118,6 +116,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accent,
     backgroundColor: 'rgba(201, 162, 39, 0.08)',
+  },
+  editing: {
+    backgroundColor: colors.paper,
   },
   input: {
     color: colors.textInverse,
