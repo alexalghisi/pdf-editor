@@ -13,6 +13,7 @@ type Props = {
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
+  readonly onMoveEnd: () => void;
   readonly paintPlaceholder: boolean;
 };
 
@@ -23,6 +24,7 @@ export function ImageNodeView({
   selected,
   onSelect,
   onMove,
+  onMoveEnd,
   paintPlaceholder,
 }: Props) {
   const screen = pdfToScreen(node.bounds, mediaBox, scale);
@@ -43,6 +45,9 @@ export function ImageNodeView({
             scale,
           ),
         );
+      },
+      onPanResponderRelease: () => {
+        onMoveEnd();
       },
     }),
   ).current;

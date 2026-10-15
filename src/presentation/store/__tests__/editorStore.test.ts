@@ -408,6 +408,20 @@ describe('useEditorStore', () => {
         rect(5, 6, 7, 8),
       );
       expect(useEditorStore.getState().document?.id).toBe('doc-moved');
+      expect(mockRenderPage).not.toHaveBeenCalled();
+    });
+
+    it('rasterizes only when the drag is finished', async () => {
+      withDocument(documentStub([textNode(1)]));
+
+      await useEditorStore.getState().syncPreview();
+
+      expect(mockSerialize).toHaveBeenCalled();
+      expect(mockRenderPage).toHaveBeenCalledWith(
+        'file://cache/preview-doc-1.pdf',
+        0,
+        2,
+      );
     });
   });
 

@@ -20,6 +20,7 @@ type Props = {
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
+  readonly onMoveEnd: () => void;
   readonly onCommitText: (content: string) => void;
   readonly paintContent: boolean;
 };
@@ -31,6 +32,7 @@ export function TextNodeView({
   selected,
   onSelect,
   onMove,
+  onMoveEnd,
   onCommitText,
   paintContent,
 }: Props) {
@@ -53,6 +55,9 @@ export function TextNodeView({
           y: pdfToScreen(origin.current, mediaBox, scale).y + gesture.dy,
         };
         onMove(screenToPdf(nextScreen, mediaBox, scale));
+      },
+      onPanResponderRelease: () => {
+        onMoveEnd();
       },
     }),
   ).current;
