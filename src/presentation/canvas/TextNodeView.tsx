@@ -21,6 +21,7 @@ type Props = {
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
   readonly onCommitText: (content: string) => void;
+  readonly paintContent: boolean;
 };
 
 export function TextNodeView({
@@ -31,6 +32,7 @@ export function TextNodeView({
   onSelect,
   onMove,
   onCommitText,
+  paintContent,
 }: Props) {
   const screen = pdfToScreen(node.bounds, mediaBox, scale);
   const [editing, setEditing] = useState(false);
@@ -91,14 +93,23 @@ export function TextNodeView({
             setEditing(true);
           }}
         >
-          <Text
-            style={{
-              color: `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`,
-              fontSize: node.fontSize * scale,
-            }}
-          >
-            {node.content}
-          </Text>
+          {paintContent ? (
+            <Text
+              style={{
+                color: `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`,
+                fontSize: node.fontSize * scale,
+              }}
+            >
+              {node.content}
+            </Text>
+          ) : (
+            <View
+              style={{
+                width: Math.max(screen.width, 8),
+                height: Math.max(screen.height, 8),
+              }}
+            />
+          )}
         </Pressable>
       )}
     </View>

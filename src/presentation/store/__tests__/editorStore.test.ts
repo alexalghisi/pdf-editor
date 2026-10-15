@@ -12,6 +12,9 @@ const mockLoadExecute = jest.fn();
 const mockLoadExecuteFromBytes = jest.fn();
 const mockSaveExecute = jest.fn();
 const mockCachePath = jest.fn((name: string) => `file://cache/${name}`);
+const mockWriteBinary = jest.fn();
+const mockSerialize = jest.fn();
+const mockRenderPage = jest.fn();
 const mockMutateAddText = jest.fn();
 const mockMutateUpdateText = jest.fn();
 const mockMutateAddImage = jest.fn();
@@ -26,13 +29,13 @@ jest.mock('@/infrastructure/di/container', () => {
   return {
     ...actual,
     getAppContainer: () => ({
-      engine: { disposeAll: jest.fn() },
+      engine: { disposeAll: jest.fn(), serialize: mockSerialize },
       fileSystem: {
         cachePath: mockCachePath,
-        writeBinary: jest.fn(),
+        writeBinary: mockWriteBinary,
         readBinary: jest.fn(),
       },
-      renderer: { renderPage: jest.fn() },
+      renderer: { renderPage: mockRenderPage },
       loadDocument: {
         execute: mockLoadExecute,
         executeFromBytes: mockLoadExecuteFromBytes,
@@ -110,8 +113,16 @@ describe('useEditorStore', () => {
       status: 'idle',
       errorMessage: null,
       rasterUri: '',
+      pdfPreviewUri: '',
     });
     jest.clearAllMocks();
+    mockSerialize.mockResolvedValue(new Uint8Array([37, 80, 68, 70]));
+    mockWriteBinary.mockResolvedValue(undefined);
+    mockRenderPage.mockResolvedValue({
+      uri: 'file://raster.png',
+      width: 1224,
+      height: 1584,
+    });
     resetAppContainer();
   });
 
@@ -129,6 +140,9 @@ describe('useEditorStore', () => {
       expect(state.fileUri).toBe('file://report.pdf');
       expect(state.fileName).toBe('report.pdf');
       expect(state.status).toBe('idle');
+      expect(mockSerialize).toHaveBeenCalledWith(document);
+      expect(mockWriteBinary).toHaveBeenCalled();
+      expect(state.rasterUri).toBe('file://raster.png');
     });
 
     it('surfaces the loader error and keeps the previous document', async () => {
@@ -422,14 +436,19 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().currentPageIndex).toBe(1);
     });
 
-    it('turns the page and drops a selection from the page left behind', () => {
+    it('turns the page and drops a selection from the page left behind', async () => {
       withDocument({ ...documentStub(), pageCount: 2 });
       useEditorStore.setState({ selectedNodeId: nodeId(1) });
 
-      useEditorStore.getState().setPage(1);
+      await useEditorStore.getState().setPage(1);
 
       expect(useEditorStore.getState().currentPageIndex).toBe(1);
       expect(useEditorStore.getState().selectedNodeId).toBeNull();
+      expect(mockRenderPage).toHaveBeenCalledWith(
+        'file://cache/preview-doc-1.pdf',
+        1,
+        2,
+      );
     });
 
     it('rejects zoom outside the safe interaction range', () => {

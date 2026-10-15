@@ -13,6 +13,7 @@ type Props = {
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (bounds: Rect) => void;
+  readonly paintPlaceholder: boolean;
 };
 
 export function ImageNodeView({
@@ -22,6 +23,7 @@ export function ImageNodeView({
   selected,
   onSelect,
   onMove,
+  paintPlaceholder,
 }: Props) {
   const screen = pdfToScreen(node.bounds, mediaBox, scale);
   const origin = useRef(node.bounds);
@@ -60,7 +62,12 @@ export function ImageNodeView({
       ]}
     >
       <Pressable onPress={onSelect} style={styles.fill}>
-        <View style={styles.placeholder} />
+        <View
+          style={[
+            styles.placeholder,
+            paintPlaceholder && styles.placeholderVisible,
+          ]}
+        />
       </Pressable>
     </View>
   );
@@ -75,6 +82,8 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     flex: 1,
+  },
+  placeholderVisible: {
     backgroundColor: 'rgba(201, 162, 39, 0.18)',
     borderWidth: 1,
     borderColor: colors.accent,
