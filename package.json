@@ -4,6 +4,7 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "postinstall": "node scripts/copy-pdf-worker.js",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -30,6 +31,7 @@
     "expo-sharing": "~57.0.18",
     "expo-status-bar": "~57.0.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

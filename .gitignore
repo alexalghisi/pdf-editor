@@ -43,3 +43,6 @@ coverage/
 
 # web export
 /dist
+
+# pdf.js worker, copied from node_modules on install
+/public/pdf.worker.min.mjs

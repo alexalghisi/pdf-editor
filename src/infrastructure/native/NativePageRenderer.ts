@@ -1,8 +1,11 @@
+import type { FileSystemPort } from '@/application/ports/FileSystemPort';
 import type {
   PageRendererPort,
   PageRenderResult,
 } from '@/application/ports/PageRendererPort';
 import type { NativePdfEngineSpec } from '@/infrastructure/native/NativePdfEngine';
+
+const RENDER_SOURCE = 'pdf-editor-render.pdf';
 
 function loadNativeEngine(): NativePdfEngineSpec | null {
   try {
@@ -19,24 +22,21 @@ function loadNativeEngine(): NativePdfEngineSpec | null {
 }
 
 export class NativePageRenderer implements PageRendererPort {
-  private readonly native: NativePdfEngineSpec | null;
-
-  constructor(native: NativePdfEngineSpec | null = loadNativeEngine()) {
-    this.native = native;
-  }
+  constructor(
+    private readonly fileSystem: FileSystemPort,
+    private readonly native: NativePdfEngineSpec | null = loadNativeEngine(),
+  ) {}
 
   async renderPage(
-    filePath: string,
+    pdfBytes: Uint8Array,
     pageIndex: number,
     scale: number,
   ): Promise<PageRenderResult> {
     if (this.native === null) {
-      return {
-        uri: '',
-        width: Math.round(612 * scale),
-        height: Math.round(792 * scale),
-      };
+      return { uri: '', width: 0, height: 0 };
     }
-    return this.native.renderPage(filePath, pageIndex, scale);
+    const path = this.fileSystem.cachePath(RENDER_SOURCE);
+    await this.fileSystem.writeBinary(path, pdfBytes);
+    return this.native.renderPage(path, pageIndex, scale);
   }
 }

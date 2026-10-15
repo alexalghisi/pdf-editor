@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
@@ -26,6 +27,11 @@ export function EditorScreen() {
   const setPage = useEditorStore((state) => state.setPage);
   const setZoom = useEditorStore((state) => state.setZoom);
   const zoom = useEditorStore((state) => state.zoom);
+  const renderCurrentPage = useEditorStore((state) => state.renderCurrentPage);
+
+  useEffect(() => {
+    void renderCurrentPage();
+  }, [document, currentPageIndex, renderCurrentPage]);
 
   if (document === null) {
     return (
