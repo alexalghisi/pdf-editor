@@ -26,6 +26,7 @@ export type EditorState = {
   readonly status: EditorStatus;
   readonly errorMessage: string | null;
   readonly rasterUri: string;
+  readonly rendering: boolean;
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
@@ -94,6 +95,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   status: 'idle',
   errorMessage: null,
   rasterUri: '',
+  rendering: false,
 
   async openFromUri(uri, fileName) {
     const { loadDocument } = getAppContainer();
@@ -135,12 +137,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   async save() {
-    const { document, fileUri, fileName } = get();
+    const { document, fileName } = get();
     if (document === null) {
       return null;
     }
     const { saveDocument, fileSystem } = getAppContainer();
-    const destination = fileUri ?? fileSystem.cachePath(fileName);
+    const destination = fileSystem.cachePath(fileName);
     set({ status: 'saving' });
     const result = await saveDocument.execute(document, destination);
     if (!result.ok) {
@@ -273,6 +275,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     latestRenderTicket += 1;
     const ticket = latestRenderTicket;
+    set({ rendering: true });
     const result = await getAppContainer().renderPage.execute(
       document,
       currentPageIndex,
@@ -282,10 +285,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
     if (!result.ok) {
-      set({ rasterUri: '', errorMessage: result.error.message });
+      set({
+        rasterUri: '',
+        rendering: false,
+        errorMessage: result.error.message,
+      });
       return;
     }
-    set({ rasterUri: result.value.uri });
+    set({ rasterUri: result.value.uri, rendering: false });
   },
 
   currentPageNodes() {
