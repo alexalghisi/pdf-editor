@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPage } from '@/domain/entities/PdfDocument';
@@ -19,6 +19,7 @@ export function EditorScreen() {
   const currentPageIndex = useEditorStore((state) => state.currentPageIndex);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const status = useEditorStore((state) => state.status);
+  const errorMessage = useEditorStore((state) => state.errorMessage);
   const rasterUri = useEditorStore((state) => state.rasterUri);
   const addText = useEditorStore((state) => state.addText);
   const addImage = useEditorStore((state) => state.addImage);
@@ -74,7 +75,7 @@ export function EditorScreen() {
 
   const exportPdf = async (): Promise<void> => {
     const uri = await save();
-    if (uri === null) {
+    if (uri === null || Platform.OS === 'web') {
       return;
     }
     if (await Sharing.isAvailableAsync()) {
@@ -103,6 +104,12 @@ export function EditorScreen() {
           }}
         />
       </View>
+
+      {errorMessage !== null ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {errorMessage}
+        </Text>
+      ) : null}
 
       <PdfCanvas page={page} rasterUri={rasterUri} />
 
@@ -168,6 +175,13 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
   },
   bottomBar: {
     flexDirection: 'row',

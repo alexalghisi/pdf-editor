@@ -112,6 +112,7 @@ describe('useEditorStore', () => {
       status: 'idle',
       errorMessage: null,
       rasterUri: '',
+      rendering: false,
     });
     jest.clearAllMocks();
     resetAppContainer();
@@ -207,17 +208,19 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().status).toBe('idle');
     });
 
-    it('writes back over the URI a document was opened from', async () => {
+    it('names the saved copy after the document, not its source URI', async () => {
       withDocument(documentStub());
-      useEditorStore.setState({ fileUri: 'file://report.pdf' });
+      useEditorStore.setState({
+        fileUri: 'blob:https://example.test/4f1c',
+        fileName: 'report.pdf',
+      });
       mockSaveExecute.mockResolvedValue(ok(undefined));
 
       await useEditorStore.getState().save();
 
-      expect(mockCachePath).not.toHaveBeenCalled();
       expect(mockSaveExecute).toHaveBeenCalledWith(
         expect.anything(),
-        'file://report.pdf',
+        'file://cache/report.pdf',
       );
     });
 
@@ -481,6 +484,24 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().rasterUri).toBe(
         'data:image/png;base64,AA',
       );
+      expect(useEditorStore.getState().rendering).toBe(false);
+    });
+
+    it('flags the page as rendering until the raster arrives', async () => {
+      withDocument(documentStub());
+      let finish: (value: unknown) => void = () => undefined;
+      mockRenderPage.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+
+      const pending = useEditorStore.getState().renderCurrentPage();
+      expect(useEditorStore.getState().rendering).toBe(true);
+      finish(ok({ uri: 'done', width: 1, height: 1 }));
+      await pending;
+
+      expect(useEditorStore.getState().rendering).toBe(false);
     });
 
     it('keeps only the latest raster when renders overlap', async () => {
