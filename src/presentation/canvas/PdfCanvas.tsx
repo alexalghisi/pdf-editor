@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 
 import type { PdfPage } from '@/domain/entities/PdfPage';
@@ -20,6 +27,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const pinchOrigin = useRef(1);
   const zoom = useEditorStore((state) => state.zoom);
+  const rendering = useEditorStore((state) => state.rendering);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
   const moveNode = useEditorStore((state) => state.moveNode);
@@ -29,7 +37,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
   const scale = fitScale(page.mediaBox, stage, spacing.lg) * zoom;
   const pageWidth = page.mediaBox.width * scale;
   const pageHeight = page.mediaBox.height * scale;
-  const showContent = rasterUri.length === 0;
+  const showContent = rasterUri.length === 0 && !rendering;
 
   const onMove = (nodeId: PdfObjectId, bounds: Rect): Promise<void> =>
     moveNode(nodeId, bounds);
@@ -102,6 +110,13 @@ export function PdfCanvas({ page, rasterUri }: Props) {
             ) : null}
           </ScrollView>
         </ScrollView>
+        {rendering ? (
+          <ActivityIndicator
+            accessibilityLabel="Rendering page"
+            color={colors.accent}
+            style={styles.spinner}
+          />
+        ) : null}
       </View>
     </PinchGestureHandler>
   );
@@ -119,6 +134,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
+  },
+  spinner: {
+    position: 'absolute',
+    top: spacing.xl,
+    right: spacing.xl,
   },
   paper: {
     backgroundColor: colors.paper,
