@@ -1,9 +1,12 @@
-import { useRef } from 'react';
-import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { PdfImageNode } from '@/domain/entities/PdfImageNode';
 import type { Rect } from '@/domain/valueObjects/Rect';
-import { pdfToScreen, screenToPdf } from '@/presentation/canvas/coordinates';
+import {
+  offsetByScreenDelta,
+  pdfToScreen,
+} from '@/presentation/canvas/coordinates';
+import { useNodeDrag } from '@/presentation/canvas/useNodeDrag';
 import { colors } from '@/presentation/theme';
 
 type Props = {
@@ -13,7 +16,7 @@ type Props = {
   readonly showContent: boolean;
   readonly selected: boolean;
   readonly onSelect: () => void;
-  readonly onMove: (bounds: Rect) => void;
+  readonly onMove: (bounds: Rect) => Promise<void>;
 };
 
 export function ImageNodeView({
@@ -26,35 +29,18 @@ export function ImageNodeView({
   onMove,
 }: Props) {
   const screen = pdfToScreen(node.bounds, mediaBox, scale);
-  const origin = useRef(node.bounds);
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => selected,
-      onMoveShouldSetPanResponder: () => selected,
-      onPanResponderGrant: () => {
-        origin.current = node.bounds;
-      },
-      onPanResponderMove: (_event, gesture) => {
-        const base = pdfToScreen(origin.current, mediaBox, scale);
-        onMove(
-          screenToPdf(
-            { ...base, x: base.x + gesture.dx, y: base.y + gesture.dy },
-            mediaBox,
-            scale,
-          ),
-        );
-      },
-    }),
-  ).current;
+  const { panHandlers, offset, dragging } = useNodeDrag(selected, (drop) =>
+    onMove(offsetByScreenDelta(node.bounds, drop, scale)),
+  );
 
   return (
     <View
-      {...pan.panHandlers}
+      {...panHandlers}
       style={[
         styles.node,
         {
-          left: screen.x,
-          top: screen.y,
+          left: screen.x + offset.dx,
+          top: screen.y + offset.dy,
           width: screen.width,
           height: screen.height,
         },
@@ -62,7 +48,7 @@ export function ImageNodeView({
       ]}
     >
       <Pressable onPress={onSelect} style={styles.fill}>
-        {showContent ? <View style={styles.placeholder} /> : null}
+        {showContent || dragging ? <View style={styles.placeholder} /> : null}
       </Pressable>
     </View>
   );
