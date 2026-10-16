@@ -3,7 +3,11 @@
 
 # PDF Editor
 
-A professional React Native PDF editor that loads, parses, and **rewrites the PDF content stream**. Text and images are first-class nodes in the document AST. Mutations are not flattened annotations.
+![PDF Editor: open a document, place text, save](assets/demo.gif)
+
+**Live app:** https://alexalghisi.github.io/pdf-editor/
+
+A professional React Native PDF editor that loads, parses, and **rewrites the PDF content stream**. Text and images are first-class nodes in the document AST. Mutations are not flattened annotations. The same project runs on iOS, Android, and in the browser.
 
 The project is built with TDD, Clean Architecture, and strict TypeScript. Page rasterization runs in a JSI/Expo native module (PDFKit on iOS, `PdfRenderer` on Android) so large documents never block the JS thread.
 
@@ -103,7 +107,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-Expo Go still edits the AST. The canvas draws a paper surface and node overlays when the JSI module is absent.
+Expo Go still edits the AST. Without the native rasterizer, text and images are placed from the content stream in page position.
 
 ### Run in the browser (no Xcode required)
 
@@ -119,9 +123,11 @@ npx expo start --web
 ```
 
 On web, document/image pickers hand back `blob:`/`data:` URIs, and a save is
-delivered as a browser download of the edited PDF. Native page rasterization is
-absent on the web and degrades to the paper surface; structural editing and
-lossless export are unaffected.
+delivered as a browser download of the edited PDF. The open page is drawn from
+the edited PDF itself, so the layout you see is the file, not a pile of loose
+glyphs. iOS and Android rasterize through `PdfNativeEngine` when that module
+is in the build. Structural editing and lossless export stay the same on every
+target.
 
 ### Scripts
 
