@@ -1,5 +1,9 @@
 import { rect } from '@/domain/valueObjects/Rect';
-import { pdfToScreen, screenToPdf } from '@/presentation/canvas/coordinates';
+import {
+  fitPageScale,
+  pdfToScreen,
+  screenToPdf,
+} from '@/presentation/canvas/coordinates';
 
 const media = rect(0, 0, 612, 792);
 
@@ -9,6 +13,18 @@ describe('canvas coordinates', () => {
     expect(screen.x).toBeCloseTo(72);
     expect(screen.y).toBeCloseTo(60);
     expect(screen.height).toBeCloseTo(12);
+  });
+
+  it('fits a letter page inside a wide window without running off the bottom', () => {
+    const scale = fitPageScale(1920, 1080, 612, 792);
+    expect(612 * scale).toBeLessThan(1920 - 32);
+    expect(792 * scale).toBeCloseTo(1080 - 180);
+  });
+
+  it('fits a letter page to the width of a phone', () => {
+    const scale = fitPageScale(390, 844, 612, 792);
+    expect(scale).toBeCloseTo((390 - 32) / 612);
+    expect(792 * scale).toBeLessThan(844);
   });
 
   it('round-trips through screen space at 2× zoom', () => {

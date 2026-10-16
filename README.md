@@ -123,11 +123,10 @@ npx expo start --web
 ```
 
 On web, document/image pickers hand back `blob:`/`data:` URIs, and a save is
-delivered as a browser download of the edited PDF. The open page is drawn from
-the edited PDF itself, so the layout you see is the file, not a pile of loose
-glyphs. iOS and Android rasterize through `PdfNativeEngine` when that module
-is in the build. Structural editing and lossless export stay the same on every
-target.
+delivered as a browser download of the edited PDF. The page on screen is the
+content stream laid out in page position, so lines stay lines. iOS and Android
+rasterize through `PdfNativeEngine` when that module is in the build.
+Structural editing and lossless export stay the same on every target.
 
 ### Scripts
 
