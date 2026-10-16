@@ -113,7 +113,6 @@ describe('useEditorStore', () => {
       status: 'idle',
       errorMessage: null,
       rasterUri: '',
-      pdfPreviewUri: '',
     });
     jest.clearAllMocks();
     mockSerialize.mockResolvedValue(new Uint8Array([37, 80, 68, 70]));

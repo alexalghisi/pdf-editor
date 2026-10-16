@@ -9,7 +9,7 @@ import { PinchGestureHandler } from 'react-native-gesture-handler';
 
 import type { PdfPage } from '@/domain/entities/PdfPage';
 import { ImageNodeView } from '@/presentation/canvas/ImageNodeView';
-import { PdfPagePreview } from '@/presentation/canvas/PdfPagePreview';
+import { fitPageScale } from '@/presentation/canvas/coordinates';
 import { TextNodeView } from '@/presentation/canvas/TextNodeView';
 import { useEditorStore } from '@/presentation/store/editorStore';
 import { colors } from '@/presentation/theme';
@@ -19,11 +19,10 @@ import type { Rect } from '@/domain/valueObjects/Rect';
 type Props = {
   readonly page: PdfPage;
   readonly rasterUri: string;
-  readonly pdfPreviewUri: string;
 };
 
-export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
+export function PdfCanvas({ page, rasterUri }: Props) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const zoom = useEditorStore((state) => state.zoom);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -32,11 +31,16 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
   const updateText = useEditorStore((state) => state.updateText);
   const setZoom = useEditorStore((state) => state.setZoom);
 
-  const fitScale = (windowWidth - 32) / page.mediaBox.width;
+  const fitScale = fitPageScale(
+    windowWidth,
+    windowHeight,
+    page.mediaBox.width,
+    page.mediaBox.height,
+  );
   const scale = fitScale * zoom;
   const pageWidth = page.mediaBox.width * scale;
   const pageHeight = page.mediaBox.height * scale;
-  const hasPreview = rasterUri.length > 0 || pdfPreviewUri.length > 0;
+  const hasPreview = rasterUri.length > 0;
 
   const onMove = (nodeId: PdfObjectId, bounds: Rect): void => {
     void moveNode(nodeId, bounds);
@@ -63,14 +67,7 @@ export function PdfCanvas({ page, rasterUri, pdfPreviewUri }: Props) {
                 style={StyleSheet.absoluteFill}
                 resizeMode="stretch"
               />
-            ) : (
-              <PdfPagePreview
-                uri={pdfPreviewUri}
-                pageIndex={page.index}
-                width={pageWidth}
-                height={pageHeight}
-              />
-            )}
+            ) : null}
             {page.nodes.map((node) =>
               node.type === 'text' ? (
                 <TextNodeView

@@ -19,7 +19,6 @@ export function EditorScreen() {
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const status = useEditorStore((state) => state.status);
   const rasterUri = useEditorStore((state) => state.rasterUri);
-  const pdfPreviewUri = useEditorStore((state) => state.pdfPreviewUri);
   const addText = useEditorStore((state) => state.addText);
   const addImage = useEditorStore((state) => state.addImage);
   const deleteSelected = useEditorStore((state) => state.deleteSelected);
@@ -99,11 +98,7 @@ export function EditorScreen() {
         />
       </View>
 
-      <PdfCanvas
-        page={page}
-        rasterUri={rasterUri}
-        pdfPreviewUri={pdfPreviewUri}
-      />
+      <PdfCanvas page={page} rasterUri={rasterUri} />
 
       <View style={styles.bottomBar}>
         <ToolbarButton

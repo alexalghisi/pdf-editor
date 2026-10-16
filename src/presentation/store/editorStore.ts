@@ -14,10 +14,6 @@ import { rect, type Rect } from '@/domain/valueObjects/Rect';
 import { BLACK, type RgbColor } from '@/domain/valueObjects/RgbColor';
 import { getAppContainer } from '@/infrastructure/di/container';
 import { createBlankPdfDocument } from '@/infrastructure/pdf/PdfLibAstEngine';
-import {
-  createPdfObjectUrl,
-  revokePdfObjectUrl,
-} from '@/infrastructure/preview/pdfObjectUrl';
 
 export type EditorStatus = 'idle' | 'loading' | 'saving' | 'error';
 
@@ -31,7 +27,6 @@ export type EditorState = {
   readonly status: EditorStatus;
   readonly errorMessage: string | null;
   readonly rasterUri: string;
-  readonly pdfPreviewUri: string;
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
@@ -70,30 +65,20 @@ async function refreshPreview(
   set: (partial: Partial<EditorState>) => void,
   get: () => EditorState,
 ): Promise<void> {
-  const { document, currentPageIndex, pdfPreviewUri } = get();
-  if (document === null) {
-    revokePdfObjectUrl(pdfPreviewUri);
-    set({ rasterUri: '', pdfPreviewUri: '' });
+  const { document, currentPageIndex } = get();
+  if (document === null || Platform.OS === 'web') {
+    set({ rasterUri: '' });
     return;
   }
   const { engine, renderer, fileSystem } = getAppContainer();
   try {
     const bytes = await engine.serialize(document);
-    if (Platform.OS === 'web') {
-      revokePdfObjectUrl(pdfPreviewUri);
-      set({
-        rasterUri: '',
-        pdfPreviewUri: createPdfObjectUrl(bytes) ?? '',
-      });
-      return;
-    }
     const path = fileSystem.cachePath(`preview-${document.id}.pdf`);
     await fileSystem.writeBinary(path, bytes);
     const rendered = await renderer.renderPage(path, currentPageIndex, 2);
-    revokePdfObjectUrl(pdfPreviewUri);
-    set({ rasterUri: rendered.uri, pdfPreviewUri: '' });
+    set({ rasterUri: rendered.uri });
   } catch {
-    set({ rasterUri: '', pdfPreviewUri: '' });
+    set({ rasterUri: '' });
   }
 }
 
@@ -132,7 +117,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   status: 'idle',
   errorMessage: null,
   rasterUri: '',
-  pdfPreviewUri: '',
 
   async openFromUri(uri, fileName) {
     const { loadDocument } = getAppContainer();
