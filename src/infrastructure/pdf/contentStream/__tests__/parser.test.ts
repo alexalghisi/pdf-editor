@@ -54,4 +54,93 @@ describe('parseContentStream', () => {
     expect(fragments).toHaveLength(1);
     expect(fragments[0]?.kind).toBe('passthrough');
   });
+
+  it('advances the text matrix after each Tj so glyphs are not stacked', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 12 Tf 72 720 Td (H) Tj (e) Tj (l) Tj (l) Tj (o) Tj ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    expect(fragments).toHaveLength(1);
+    const fragment = fragments[0];
+    expect(fragment?.kind).toBe('text');
+    if (fragment?.kind !== 'text') {
+      throw new Error('expected merged text');
+    }
+    expect(fragment.node.content).toBe('Hello');
+    expect(fragment.node.bounds.x).toBeCloseTo(72);
+    expect(fragment.node.bounds.y).toBeCloseTo(720);
+    expect(fragment.node.bounds.width).toBeGreaterThan(20);
+    expect(fragment.node.fontSize).toBeCloseTo(12);
+  });
+
+  it('reads painted size from Tm when Tf is 1', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 1 Tf 18 0 0 18 90 640 Tm (Title) Tj ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    const fragment = fragments[0];
+    expect(fragment?.kind).toBe('text');
+    if (fragment?.kind !== 'text') {
+      throw new Error('expected text fragment');
+    }
+    expect(fragment.node.content).toBe('Title');
+    expect(fragment.node.fontSize).toBeCloseTo(18);
+    expect(fragment.node.bounds.x).toBeCloseTo(90);
+    expect(fragment.node.bounds.y).toBeCloseTo(640);
+    expect(fragment.node.bounds.height).toBeCloseTo(18);
+  });
+
+  it('joins TJ parts and applies kerning to the run width', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 10 Tf 50 400 Td [(Hel) 0 (lo)] TJ ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    const fragment = fragments[0];
+    expect(fragment?.kind).toBe('text');
+    if (fragment?.kind !== 'text') {
+      throw new Error('expected text fragment');
+    }
+    expect(fragment.node.content).toBe('Hello');
+    expect(fragment.node.bounds.x).toBeCloseTo(50);
+    expect(fragment.node.bounds.y).toBeCloseTo(400);
+  });
+
+  it('strips NUL bytes from UTF-16BE hex strings without a BOM', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 12 Tf 10 20 Td <00480069> Tj ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    const fragment = fragments[0];
+    expect(fragment?.kind).toBe('text');
+    if (fragment?.kind !== 'text') {
+      throw new Error('expected text fragment');
+    }
+    expect(fragment.node.content).toBe('Hi');
+  });
+
+  it('moves to the next line with T* after TL', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 12 Tf 12 TL 100 200 Td (One) Tj T* (Two) Tj ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    const texts = fragments.filter((fragment) => fragment.kind === 'text');
+    expect(texts).toHaveLength(2);
+    if (texts[0]?.kind !== 'text' || texts[1]?.kind !== 'text') {
+      throw new Error('expected two text runs');
+    }
+    expect(texts[0].node.content).toBe('One');
+    expect(texts[1].node.content).toBe('Two');
+    expect(texts[1].node.bounds.y).toBeCloseTo(188);
+    expect(texts[1].node.bounds.x).toBeCloseTo(100);
+  });
 });
