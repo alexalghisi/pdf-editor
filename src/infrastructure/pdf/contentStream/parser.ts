@@ -43,6 +43,9 @@ type TextState = {
   fontSize: number;
   textMatrix: Matrix;
   textLineMatrix: Matrix;
+  leading: number;
+  horizScale: number;
+  rise: number;
 };
 
 const HELVETICA_AVG_WIDTH = 0.55;
@@ -81,31 +84,177 @@ function asString(token: PdfToken | undefined): string | null {
   return token?.kind === 'string' ? token.value : null;
 }
 
-function tjArrayText(token: PdfToken | undefined): string {
-  if (token?.kind !== 'array') {
-    return '';
+function decodeShownText(content: string): string {
+  if (content.indexOf('\u0000') === -1) {
+    return content;
   }
-  return token.value
-    .filter(
-      (item): item is { kind: 'string'; value: string } =>
-        item.kind === 'string',
-    )
-    .map((item) => item.value)
-    .join('');
+  return content.replace(/\u0000/g, '');
 }
 
 function estimateTextWidth(content: string, fontSize: number): number {
-  return Math.max(content.length * fontSize * HELVETICA_AVG_WIDTH, 1);
+  return Math.max(content.length * fontSize * HELVETICA_AVG_WIDTH, 0);
 }
 
-function shiftedText(state: TextState, tx: number, ty: number): TextState {
+function matrixScaleY(matrix: Matrix): number {
+  return Math.hypot(matrix[2], matrix[3]);
+}
+
+function sameColor(left: RgbColor, right: RgbColor): boolean {
+  return left.r === right.r && left.g === right.g && left.b === right.b;
+}
+
+function withLineShift(state: TextState, tx: number, ty: number): TextState {
   const next = multiply(state.textLineMatrix, [1, 0, 0, 1, tx, ty]);
   return {
-    fontName: state.fontName,
-    fontSize: state.fontSize,
+    ...state,
     textMatrix: next,
     textLineMatrix: next,
   };
+}
+
+function withTmAdvance(state: TextState, tx: number, ty: number): TextState {
+  return {
+    ...state,
+    textMatrix: multiply(state.textMatrix, [1, 0, 0, 1, tx, ty]),
+  };
+}
+
+function nextLine(state: TextState): TextState {
+  return withLineShift(state, 0, -state.leading);
+}
+
+function paintedSize(ctm: Matrix, state: TextState): number {
+  const user = multiply(ctm, state.textMatrix);
+  const size = matrixScaleY(user) * state.fontSize;
+  if (!Number.isFinite(size) || size <= 0) {
+    return Math.max(state.fontSize, 1);
+  }
+  return size;
+}
+
+function textOperatorTokens(
+  state: TextState,
+  fill: RgbColor,
+  content: string,
+): PdfToken[] {
+  const origin = applyToPoint(state.textMatrix, 0, 0);
+  return [
+    { kind: 'operator', value: 'BT' },
+    { kind: 'name', value: state.fontName },
+    { kind: 'number', value: state.fontSize },
+    { kind: 'operator', value: 'Tf' },
+    { kind: 'number', value: fill.r },
+    { kind: 'number', value: fill.g },
+    { kind: 'number', value: fill.b },
+    { kind: 'operator', value: 'rg' },
+    { kind: 'number', value: origin.x },
+    { kind: 'number', value: origin.y },
+    { kind: 'operator', value: 'Td' },
+    { kind: 'string', value: content },
+    { kind: 'operator', value: 'Tj' },
+    { kind: 'operator', value: 'ET' },
+  ];
+}
+
+function canJoinText(previous: PdfTextNode, next: PdfTextNode): boolean {
+  if (previous.fontName !== next.fontName) {
+    return false;
+  }
+  if (!sameColor(previous.color, next.color)) {
+    return false;
+  }
+  if (Math.abs(previous.fontSize - next.fontSize) > 0.6) {
+    return false;
+  }
+  if (Math.abs(previous.bounds.y - next.bounds.y) > previous.fontSize * 0.35) {
+    return false;
+  }
+  const gap = next.bounds.x - (previous.bounds.x + previous.bounds.width);
+  return gap >= -previous.fontSize * 0.35 && gap <= previous.fontSize * 0.7;
+}
+
+function joinGap(previous: PdfTextNode, next: PdfTextNode): string {
+  const gap = next.bounds.x - (previous.bounds.x + previous.bounds.width);
+  return gap > previous.fontSize * 0.22 ? ' ' : '';
+}
+
+function mergeTextFragments(
+  fragments: ContentFragment[],
+  pageIndex: number,
+): ContentFragment[] {
+  const merged: ContentFragment[] = [];
+  for (const fragment of fragments) {
+    const previous = merged[merged.length - 1];
+    if (
+      fragment.kind !== 'text' ||
+      previous === undefined ||
+      previous.kind !== 'text' ||
+      !canJoinText(previous.node, fragment.node)
+    ) {
+      merged.push(fragment);
+      continue;
+    }
+    const content =
+      previous.node.content +
+      joinGap(previous.node, fragment.node) +
+      fragment.node.content;
+    const right = fragment.node.bounds.x + fragment.node.bounds.width;
+    const width = Math.max(
+      previous.node.bounds.width,
+      right - previous.node.bounds.x,
+    );
+    merged[merged.length - 1] = {
+      kind: 'text',
+      raw: `${previous.raw}\n${fragment.raw}`,
+      node: {
+        ...previous.node,
+        content,
+        bounds: rect(
+          previous.node.bounds.x,
+          previous.node.bounds.y,
+          width,
+          Math.max(previous.node.bounds.height, fragment.node.bounds.height),
+        ),
+      },
+    };
+  }
+
+  let ordinal = 0;
+  return merged.map((fragment) => {
+    if (fragment.kind !== 'text') {
+      return fragment;
+    }
+    const node: PdfTextNode = {
+      ...fragment.node,
+      id: createPdfObjectId(pageIndex, 'text', ordinal),
+    };
+    ordinal += 1;
+    return { ...fragment, node };
+  });
+}
+
+function tjAdvance(
+  token: PdfToken | undefined,
+  fontSize: number,
+  horizScale: number,
+): { content: string; advance: number } {
+  if (token?.kind !== 'array') {
+    return { content: '', advance: 0 };
+  }
+  let content = '';
+  let advance = 0;
+  for (const item of token.value) {
+    if (item.kind === 'string') {
+      const shown = decodeShownText(item.value);
+      content += shown;
+      advance += estimateTextWidth(shown, fontSize) * horizScale;
+      continue;
+    }
+    if (item.kind === 'number') {
+      advance += (-item.value / 1000) * fontSize * horizScale;
+    }
+  }
+  return { content, advance };
 }
 
 export function parseContentStream(
@@ -117,7 +266,6 @@ export function parseContentStream(
   const stack: GraphicsState[] = [];
   let graphics: GraphicsState = { ctm: IDENTITY, fill: BLACK };
   const textRef: { value: TextState | null } = { value: null };
-  let textOrdinal = 0;
   let imageOrdinal = 0;
   let absorbNextRestore = false;
   let passthrough: PdfToken[] = [];
@@ -139,41 +287,55 @@ export function parseContentStream(
       fontSize: 12,
       textMatrix: IDENTITY,
       textLineMatrix: IDENTITY,
+      leading: 0,
+      horizScale: 1,
+      rise: 0,
     };
   };
 
-  const emitText = (content: string, rawTokens: readonly PdfToken[]): void => {
+  const emitText = (content: string, advance: number): void => {
     const text = textRef.value;
-    if (text === null || content.length === 0) {
+    const shown = decodeShownText(content);
+    if (text === null || shown.length === 0) {
+      if (text !== null && advance !== 0) {
+        textRef.value = withTmAdvance(text, advance, 0);
+      }
       return;
     }
     flushPassthrough();
+    const size = paintedSize(graphics.ctm, text);
     const pagePoint = applyToPoint(
       multiply(graphics.ctm, text.textMatrix),
       0,
-      0,
+      text.rise,
     );
+    const width = Math.max(estimateTextWidth(shown, size), 1);
     const node: PdfTextNode = {
-      id: createPdfObjectId(input.pageIndex, 'text', textOrdinal),
+      id: createPdfObjectId(input.pageIndex, 'text', fragments.length),
       type: 'text',
       pageIndex: input.pageIndex,
-      bounds: rect(
-        pagePoint.x,
-        pagePoint.y,
-        estimateTextWidth(content, text.fontSize),
-        text.fontSize,
-      ),
-      content,
+      bounds: rect(pagePoint.x, pagePoint.y, width, size),
+      content: shown,
       fontName: text.fontName,
-      fontSize: text.fontSize,
+      fontSize: size,
       color: graphics.fill,
     };
-    textOrdinal += 1;
     fragments.push({
       kind: 'text',
       node,
-      raw: serializeTokens(rawTokens),
+      raw: serializeTokens(textOperatorTokens(text, graphics.fill, shown)),
     });
+    textRef.value = withTmAdvance(text, advance, 0);
+  };
+
+  const showString = (content: string): void => {
+    const text = textRef.value;
+    if (text === null) {
+      return;
+    }
+    const shown = decodeShownText(content);
+    const advance = estimateTextWidth(shown, text.fontSize) * text.horizScale;
+    emitText(content, advance);
   };
 
   for (let i = 0; i < tokens.length; i += 1) {
@@ -273,11 +435,34 @@ export function parseContentStream(
       const fontSize = asNumber(operands[1]);
       if (current !== null && fontName !== null && fontSize !== null) {
         textRef.value = {
+          ...current,
           fontName,
           fontSize,
-          textMatrix: current.textMatrix,
-          textLineMatrix: current.textLineMatrix,
         };
+      }
+      operands.length = 0;
+      continue;
+    }
+    if (op === 'TL' && textRef.value !== null) {
+      const leading = asNumber(operands[0]);
+      if (leading !== null) {
+        textRef.value = { ...textRef.value, leading };
+      }
+      operands.length = 0;
+      continue;
+    }
+    if (op === 'Tz' && textRef.value !== null) {
+      const percent = asNumber(operands[0]);
+      if (percent !== null) {
+        textRef.value = { ...textRef.value, horizScale: percent / 100 };
+      }
+      operands.length = 0;
+      continue;
+    }
+    if (op === 'Ts' && textRef.value !== null) {
+      const rise = asNumber(operands[0]);
+      if (rise !== null) {
+        textRef.value = { ...textRef.value, rise };
       }
       operands.length = 0;
       continue;
@@ -285,8 +470,8 @@ export function parseContentStream(
     if (op === 'Td' && textRef.value !== null) {
       const tx = asNumber(operands[0]);
       const ty = asNumber(operands[1]);
-      if (textRef.value !== null && tx !== null && ty !== null) {
-        textRef.value = shiftedText(textRef.value, tx, ty);
+      if (tx !== null && ty !== null) {
+        textRef.value = withLineShift(textRef.value, tx, ty);
       }
       operands.length = 0;
       continue;
@@ -294,9 +479,18 @@ export function parseContentStream(
     if (op === 'TD' && textRef.value !== null) {
       const tx = asNumber(operands[0]);
       const ty = asNumber(operands[1]);
-      if (textRef.value !== null && tx !== null && ty !== null) {
-        textRef.value = shiftedText(textRef.value, tx, ty);
+      if (tx !== null && ty !== null) {
+        textRef.value = withLineShift(
+          { ...textRef.value, leading: -ty },
+          tx,
+          ty,
+        );
       }
+      operands.length = 0;
+      continue;
+    }
+    if (op === 'T*' && textRef.value !== null) {
+      textRef.value = nextLine(textRef.value);
       operands.length = 0;
       continue;
     }
@@ -315,64 +509,31 @@ export function parseContentStream(
         e !== null &&
         f !== null
       ) {
-        const current = textRef.value;
         const matrix: Matrix = [a, b, c, d, e, f];
-        if (current !== null) {
-          textRef.value = {
-            fontName: current.fontName,
-            fontSize: current.fontSize,
-            textMatrix: matrix,
-            textLineMatrix: matrix,
-          };
-        }
+        textRef.value = {
+          ...textRef.value,
+          textMatrix: matrix,
+          textLineMatrix: matrix,
+        };
       }
       operands.length = 0;
       continue;
     }
     if ((op === 'Tj' || op === "'") && textRef.value !== null) {
-      if (op === "'" && textRef.value !== null) {
-        textRef.value = shiftedText(textRef.value, 0, -textRef.value.fontSize);
+      if (op === "'") {
+        textRef.value = nextLine(textRef.value);
       }
-      const content = asString(operands[0]) ?? '';
-      const text = textRef.value;
-      if (text === null) {
-        operands.length = 0;
-        continue;
-      }
-      emitText(content, [
-        { kind: 'operator', value: 'BT' },
-        { kind: 'name', value: text.fontName },
-        { kind: 'number', value: text.fontSize },
-        { kind: 'operator', value: 'Tf' },
-        { kind: 'number', value: graphics.fill.r },
-        { kind: 'number', value: graphics.fill.g },
-        { kind: 'number', value: graphics.fill.b },
-        { kind: 'operator', value: 'rg' },
-        { kind: 'number', value: applyToPoint(text.textMatrix, 0, 0).x },
-        { kind: 'number', value: applyToPoint(text.textMatrix, 0, 0).y },
-        { kind: 'operator', value: 'Td' },
-        { kind: 'string', value: content },
-        { kind: 'operator', value: 'Tj' },
-        { kind: 'operator', value: 'ET' },
-      ]);
+      showString(asString(operands[0]) ?? '');
       operands.length = 0;
       continue;
     }
     if (op === 'TJ' && textRef.value !== null) {
-      const content = tjArrayText(operands[0]);
-      const text = textRef.value;
-      emitText(content, [
-        { kind: 'operator', value: 'BT' },
-        { kind: 'name', value: text.fontName },
-        { kind: 'number', value: text.fontSize },
-        { kind: 'operator', value: 'Tf' },
-        { kind: 'number', value: applyToPoint(text.textMatrix, 0, 0).x },
-        { kind: 'number', value: applyToPoint(text.textMatrix, 0, 0).y },
-        { kind: 'operator', value: 'Td' },
-        { kind: 'string', value: content },
-        { kind: 'operator', value: 'Tj' },
-        { kind: 'operator', value: 'ET' },
-      ]);
+      const shown = tjAdvance(
+        operands[0],
+        textRef.value.fontSize,
+        textRef.value.horizScale,
+      );
+      emitText(shown.content, shown.advance);
       operands.length = 0;
       continue;
     }
@@ -429,5 +590,5 @@ export function parseContentStream(
   }
 
   flushPassthrough();
-  return fragments;
+  return mergeTextFragments(fragments, input.pageIndex);
 }
