@@ -311,7 +311,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
     nodeId: PdfTextNode['id'],
     bounds: Rect,
   ): Promise<void> {
-    const existing = this.resolveNode(document, nodeId);
+    this.resolveNode(document, nodeId);
     const session = this.requireSession(document.id);
     const location = parsePdfObjectId(nodeId);
     const page = this.requireNativePage(session, location.pageIndex);
@@ -333,7 +333,6 @@ export class PdfLibAstEngine implements PdfAstEngine {
       current.kind === 'text'
         ? rewriteTextFragment(current, { bounds })
         : rewriteImageFragment(current, bounds);
-    void existing;
     this.commitPage(session, page, location.pageIndex);
   }
 
