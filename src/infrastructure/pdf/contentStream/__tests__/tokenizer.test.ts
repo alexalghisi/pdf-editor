@@ -57,4 +57,49 @@ describe('tokenizeContentStream', () => {
       { kind: 'operator', value: 'Do' },
     ]);
   });
+
+  describe('inline images', () => {
+    const image = 'BI /W 2 /H 1 /CS /G /BPC 8 ID ÿ) EI\nQ';
+
+    it('keeps the image source, binary data included, as one token', () => {
+      const tokens = tokenizeContentStream(`q ${image}`);
+
+      expect(tokens).toEqual([
+        { kind: 'operator', value: 'q' },
+        {
+          kind: 'inlineImage',
+          value: 'BI /W 2 /H 1 /CS /G /BPC 8 ID ÿ) EI',
+          entries: [
+            { kind: 'name', value: 'W' },
+            { kind: 'number', value: 2 },
+            { kind: 'name', value: 'H' },
+            { kind: 'number', value: 1 },
+            { kind: 'name', value: 'CS' },
+            { kind: 'name', value: 'G' },
+            { kind: 'name', value: 'BPC' },
+            { kind: 'number', value: 8 },
+          ],
+        },
+        { kind: 'operator', value: 'Q' },
+      ]);
+    });
+
+    it('does not stop at EI bytes inside the image data', () => {
+      const tokens = tokenizeContentStream('BI /W 1 /H 1 ID xEIy EI');
+
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ value: 'BI /W 1 /H 1 ID xEIy EI' });
+    });
+
+    it('takes the rest of the stream when EI is missing', () => {
+      const tokens = tokenizeContentStream('BI /W 1 /H 1 ID \u0001\u0002');
+
+      expect(tokens).toEqual([
+        expect.objectContaining({
+          kind: 'inlineImage',
+          value: 'BI /W 1 /H 1 ID \u0001\u0002',
+        }),
+      ]);
+    });
+  });
 });

@@ -2,6 +2,7 @@ import {
   parseContentStream,
   type ContentFragment,
 } from '@/infrastructure/pdf/contentStream/parser';
+import { rect } from '@/domain/valueObjects/Rect';
 import { joinFragments } from '@/infrastructure/pdf/contentStream/rewriter';
 import { tokenizeContentStream } from '@/infrastructure/pdf/contentStream/tokenizer';
 
@@ -62,8 +63,8 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    expect(fragments).toHaveLength(1);
-    expect(fragments[0]?.kind).toBe('passthrough');
+    expect(nodeFragments(fragments)).toHaveLength(0);
+    expect(joinFragments(fragments)).toContain('0 0 m 100 0 l S');
   });
 
   it('advances the text matrix after each Tj so glyphs are not stacked', () => {
@@ -156,6 +157,12 @@ describe('parseContentStream', () => {
     expect(texts[1].node.bounds.x).toBeCloseTo(100);
   });
 
+  it('leaves an empty stream empty instead of isolating nothing', () => {
+    expect(
+      parseContentStream({ source: '', pageIndex: 0, imageResources: {} }),
+    ).toEqual([]);
+  });
+
   it('writes an untouched stream back operator for operator', () => {
     const source = [
       '.24 0 0 -.24 0 792 cm',
@@ -174,5 +181,51 @@ describe('parseContentStream', () => {
     expect(tokenizeContentStream(joinFragments(fragments))).toEqual(
       tokenizeContentStream(`q ${source} Q`),
     );
+  });
+
+  describe('inline images', () => {
+    const source =
+      'q 40 0 0 20 10 30 cm BI /W 4 /H 2 /CS /G /BPC 8 ID \u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007 EI Q';
+
+    it('exposes an inline image as an image node painted by the CTM', () => {
+      const image = nodeFragments(
+        parseContentStream({ source, pageIndex: 0, imageResources: {} }),
+      )[0];
+
+      expect(image?.kind).toBe('image');
+      if (image?.kind !== 'image') {
+        throw new Error('expected an image fragment');
+      }
+      expect(image.node.resourceName).toBeNull();
+      expect(image.node.bounds).toEqual(rect(10, 30, 40, 20));
+      expect(image.node.pixelWidth).toBe(4);
+      expect(image.node.pixelHeight).toBe(2);
+    });
+
+    it('reads the full key names an inline dictionary may use', () => {
+      const image = nodeFragments(
+        parseContentStream({
+          source: 'BI /Width 3 /Height 5 ID \u0000 EI',
+          pageIndex: 0,
+          imageResources: {},
+        }),
+      )[0];
+
+      expect(image).toMatchObject({
+        node: { pixelWidth: 3, pixelHeight: 5 },
+      });
+    });
+
+    it('writes the image data back byte for byte', () => {
+      const fragments = parseContentStream({
+        source,
+        pageIndex: 0,
+        imageResources: {},
+      });
+
+      expect(joinFragments(fragments)).toContain(
+        source.slice(source.indexOf('BI'), source.lastIndexOf(' Q')),
+      );
+    });
   });
 });
