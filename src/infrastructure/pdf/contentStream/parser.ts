@@ -45,7 +45,7 @@ export type ContentFragment =
       readonly kind: 'image';
       readonly node: PdfImageNode;
       readonly raw: string;
-      readonly placement: ImagePlacement | null;
+      readonly placement: ImagePlacement;
     }
   | { readonly kind: 'passthrough'; readonly raw: string };
 
@@ -260,6 +260,22 @@ function applyTextOperator(
   }
 }
 
+function entryNumber(
+  entries: readonly PdfToken[],
+  keys: readonly string[],
+): number | null {
+  const index = entries.findIndex(
+    (entry) => entry.kind === 'name' && keys.includes(entry.value),
+  );
+  return index === -1 ? null : asNumber(entries[index + 1]);
+}
+
+function inlineImageSize(entries: readonly PdfToken[]): ImageResource | null {
+  const width = entryNumber(entries, ['W', 'Width']);
+  const height = entryNumber(entries, ['H', 'Height']);
+  return width === null || height === null ? null : { width, height };
+}
+
 function tjAdvance(
   token: PdfToken | undefined,
   fontSize: number,
@@ -282,6 +298,15 @@ function tjAdvance(
     }
   }
   return { content, advance };
+}
+
+const SAVE_STATE: ContentFragment = { kind: 'passthrough', raw: 'q' };
+const RESTORE_STATE: ContentFragment = { kind: 'passthrough', raw: 'Q' };
+
+function isolate(fragments: ContentFragment[]): ContentFragment[] {
+  return fragments.length === 0
+    ? fragments
+    : [SAVE_STATE, ...fragments, RESTORE_STATE];
 }
 
 export function parseContentStream(
@@ -415,15 +440,13 @@ export function parseContentStream(
     emitText(operator, content, advance);
   };
 
-  const emitImage = (operator: PdfToken, resourceName: string): void => {
-    const image = input.imageResources[resourceName];
-    if (image === undefined) {
-      keep(operator);
-      return;
-    }
+  const emitImage = (
+    resourceName: string | null,
+    size: ImageResource,
+    body: string,
+  ): void => {
     flushPassthrough();
     openRun = null;
-    const body = serializeTokens([...operands, operator]);
     fragments.push({
       kind: 'image',
       node: {
@@ -432,8 +455,8 @@ export function parseContentStream(
         pageIndex: input.pageIndex,
         bounds: paintedBounds(graphics.ctm),
         resourceName,
-        pixelWidth: image.width,
-        pixelHeight: image.height,
+        pixelWidth: size.width,
+        pixelHeight: size.height,
       },
       raw: body,
       placement: { ctm: graphics.ctm, transform: IDENTITY, body },
@@ -442,6 +465,16 @@ export function parseContentStream(
   };
 
   for (const token of tokens) {
+    if (token.kind === 'inlineImage') {
+      const size = inlineImageSize(token.entries);
+      if (size === null) {
+        passthrough.push(token);
+        openRun = null;
+      } else {
+        emitImage(null, size, token.value);
+      }
+      continue;
+    }
     if (token.kind !== 'operator') {
       operands.push(token);
       continue;
@@ -492,8 +525,10 @@ export function parseContentStream(
       textRef.value = applyTextOperator(text, op, operands);
     } else if (op === 'Do') {
       const resourceName = asName(operands[0]);
-      if (resourceName !== null) {
-        emitImage(token, resourceName);
+      const image =
+        resourceName === null ? undefined : input.imageResources[resourceName];
+      if (resourceName !== null && image !== undefined) {
+        emitImage(resourceName, image, serializeTokens([...operands, token]));
         operands.length = 0;
         continue;
       }
@@ -504,5 +539,5 @@ export function parseContentStream(
   }
 
   flushPassthrough();
-  return numberTextNodes(fragments, input.pageIndex);
+  return isolate(numberTextNodes(fragments, input.pageIndex));
 }

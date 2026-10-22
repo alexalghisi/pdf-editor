@@ -40,6 +40,7 @@ export function serializeToken(token: PdfToken): string {
     case 'string':
       return serializeString(token.value);
     case 'operator':
+    case 'inlineImage':
       return token.value;
     case 'array':
       return `[${token.value.map(serializeToken).join(' ')}]`;
