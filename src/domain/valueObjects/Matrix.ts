@@ -41,3 +41,32 @@ export function translation(x: number, y: number): Matrix {
 export function scale(sx: number, sy: number): Matrix {
   return [sx, 0, 0, sy, 0, 0];
 }
+
+export function invert(matrix: Matrix): Matrix {
+  const [a, b, c, d, e, f] = matrix;
+  const determinant = a * d - b * c;
+  return [
+    d / determinant,
+    -b / determinant,
+    -c / determinant,
+    a / determinant,
+    (c * f - d * e) / determinant,
+    (b * e - a * f) / determinant,
+  ];
+}
+
+export function shiftInPageSpace(
+  local: Matrix,
+  ctm: Matrix,
+  dx: number,
+  dy: number,
+): Matrix {
+  const [a, b, c, d] = ctm;
+  if (a * d - b * c === 0) {
+    return local;
+  }
+  return multiply(
+    invert(ctm),
+    multiply(translation(dx, dy), multiply(ctm, local)),
+  );
+}
