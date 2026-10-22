@@ -25,6 +25,7 @@ import type {
   UpdateImageCommand,
   UpdateTextCommand,
 } from '@/domain/services/PdfAstEngine';
+import { IDENTITY } from '@/domain/valueObjects/Matrix';
 import { createPdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { parsePdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { rect, type Rect } from '@/domain/valueObjects/Rect';
@@ -220,6 +221,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
     ).length;
     const resourceName = `ImAdd${ordinal}`;
     ensureImageResource(page, session.pdf, resourceName, embedded.ref);
+    const body = writeImageOperators(resourceName, command.bounds);
     const node: PdfImageNode = {
       id: createPdfObjectId(command.pageIndex, 'image', ordinal),
       type: 'image',
@@ -232,8 +234,8 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragments.push({
       kind: 'image',
       node,
-      raw: writeImageOperators(resourceName, command.bounds),
-      placement: null,
+      raw: body,
+      placement: { ctm: IDENTITY, transform: IDENTITY, body },
     });
     this.commitPage(session, page, command.pageIndex);
     return node;
@@ -250,6 +252,13 @@ export class PdfLibAstEngine implements PdfAstEngine {
         `Node ${command.nodeId} is not an image XObject`,
       );
     }
+    const { resourceName } = existing;
+    if (resourceName === null) {
+      throw new PdfDomainError(
+        'UNSUPPORTED_IMAGE',
+        `Node ${command.nodeId} is an inline image; its pixels cannot be replaced`,
+      );
+    }
     const session = this.requireSession(document.id);
     const location = parsePdfObjectId(command.nodeId);
     const page = this.requireNativePage(session, location.pageIndex);
@@ -258,7 +267,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
       command.imageBytes,
       command.mimeType,
     );
-    ensureImageResource(page, session.pdf, existing.resourceName, embedded.ref);
+    ensureImageResource(page, session.pdf, resourceName, embedded.ref);
     const fragments = this.pageFragments(session, location.pageIndex);
     const index = fragments.findIndex(
       (fragment) =>
