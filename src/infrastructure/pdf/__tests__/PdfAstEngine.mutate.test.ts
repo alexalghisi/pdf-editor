@@ -1,3 +1,5 @@
+import { PDFDocument, PDFName, PDFRef } from 'pdf-lib';
+
 import { BLACK, rgbColor } from '@/domain/valueObjects/RgbColor';
 import { getPage } from '@/domain/entities/PdfDocument';
 import { pageNodesOfType } from '@/domain/entities/PdfPage';
@@ -129,6 +131,40 @@ describe('PdfAstEngine.mutate', () => {
     expect(pageNodesOfType(getPage(reloaded, 0), 'text')[0]?.content).toBe(
       'Persisted',
     );
+  });
+
+  it('writes the rewritten content stream as an indirect object', async () => {
+    const document = await engine.load(buildFixturePdf());
+    await engine.addText(document, {
+      pageIndex: 0,
+      content: 'Indirect',
+      bounds: rect(90, 640, 80, 14),
+      fontSize: 14,
+      color: BLACK,
+    });
+
+    const saved = await PDFDocument.load(await engine.serialize(document));
+    const contents = saved.getPage(0).node.get(PDFName.of('Contents'));
+
+    expect(contents).toBeInstanceOf(PDFRef);
+  });
+
+  it('replaces the page content stream instead of piling up copies', async () => {
+    const document = await engine.load(buildFixturePdf());
+    const original = pageNodesOfType(getPage(document, 0), 'text')[0];
+    if (original === undefined) {
+      throw new Error('expected original text');
+    }
+    const countObjects = async (): Promise<number> =>
+      (
+        await PDFDocument.load(await engine.serialize(document))
+      ).context.enumerateIndirectObjects().length;
+
+    await engine.updateText(document, { nodeId: original.id, content: 'One' });
+    const afterFirstEdit = await countObjects();
+    await engine.updateText(document, { nodeId: original.id, content: 'Two' });
+
+    expect(await countObjects()).toBe(afterFirstEdit);
   });
 
   it('preserves untouched text when another node is edited', async () => {
