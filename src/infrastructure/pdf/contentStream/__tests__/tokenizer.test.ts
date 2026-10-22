@@ -32,6 +32,11 @@ describe('tokenizeContentStream', () => {
     expect(tokens).toEqual([{ kind: 'string', value: 'Hello' }]);
   });
 
+  it('keeps hex strings as raw bytes even when they start with FE FF', () => {
+    const tokens = tokenizeContentStream('<FEFF0048>');
+    expect(tokens).toEqual([{ kind: 'string', value: '\u00fe\u00ff\u0000H' }]);
+  });
+
   it('parses arrays used by TJ', () => {
     const tokens = tokenizeContentStream('[(Hel) -20 (lo)] TJ');
     expect(tokens[0]).toEqual({
