@@ -1,7 +1,11 @@
-import type { PdfToken } from '@/infrastructure/pdf/contentStream/tokens';
+import {
+  isOperator,
+  type PdfToken,
+} from '@/infrastructure/pdf/contentStream/tokens';
 
 const WHITESPACE = new Set(['\u0000', '\t', '\n', '\f', '\r', ' ']);
 const DELIMITERS = new Set(['(', ')', '<', '>', '[', ']', '{', '}', '/', '%']);
+const INLINE_IMAGE_END = /[\0\t\n\f\r ]EI(?=[\0\t\n\f\r ()<>[\]{}/%]|$)/g;
 
 function isWhitespace(char: string): boolean {
   return WHITESPACE.has(char);
@@ -197,8 +201,24 @@ export function tokenizeContentStream(source: string): PdfToken[] {
     return { kind: 'array', value };
   };
 
+  const readInlineImage = (start: number): PdfToken => {
+    const entries: PdfToken[] = [];
+    while (index < source.length) {
+      const entry = readToken();
+      if (entry === undefined || isOperator(entry, 'ID')) {
+        break;
+      }
+      entries.push(entry);
+    }
+    INLINE_IMAGE_END.lastIndex = index;
+    const end = INLINE_IMAGE_END.exec(source);
+    index = end === null ? source.length : end.index + end[0].length;
+    return { kind: 'inlineImage', value: source.slice(start, index), entries };
+  };
+
   const readToken = (): PdfToken | undefined => {
     skipWhitespaceAndComments();
+    const start = index;
     const char = peek();
     if (char === undefined) {
       return undefined;
@@ -245,6 +265,9 @@ export function tokenizeContentStream(source: string): PdfToken[] {
     }
     if (/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(raw)) {
       return { kind: 'number', value: Number(raw) };
+    }
+    if (raw === 'BI') {
+      return readInlineImage(start);
     }
     return { kind: 'operator', value: raw };
   };
