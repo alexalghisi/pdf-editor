@@ -11,19 +11,8 @@ import {
   type PDFPage,
 } from 'pdf-lib';
 
-import { decodePdfBytes } from '@/infrastructure/pdf/bytes';
+import { decodePdfBytes, encodePdfBytes } from '@/infrastructure/pdf/bytes';
 import type { ImageResource } from '@/infrastructure/pdf/contentStream/parser';
-
-function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
-}
 
 function decodeStream(stream: PDFStream): Uint8Array {
   if (stream instanceof PDFRawStream) {
@@ -38,14 +27,14 @@ export function readPageContent(page: PDFPage): string {
     return '';
   }
   if (contents instanceof PDFArray) {
-    const chunks: Uint8Array[] = [];
+    const chunks: string[] = [];
     for (let i = 0; i < contents.size(); i += 1) {
       const item = contents.lookup(i);
       if (item instanceof PDFStream) {
-        chunks.push(decodeStream(item));
+        chunks.push(decodePdfBytes(decodeStream(item)));
       }
     }
-    return decodePdfBytes(concatBytes(chunks));
+    return chunks.join('\n');
   }
   if (contents instanceof PDFStream) {
     return decodePdfBytes(decodeStream(contents));
@@ -54,9 +43,8 @@ export function readPageContent(page: PDFPage): string {
 }
 
 export function writePageContent(page: PDFPage, source: string): void {
-  const bytes = new TextEncoder().encode(source);
   const { context } = page.doc;
-  const stream = context.flateStream(bytes);
+  const stream = context.flateStream(encodePdfBytes(source));
   const current = page.node.get(PDFName.of('Contents'));
   if (current instanceof PDFRef) {
     context.assign(current, stream);
