@@ -151,6 +151,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
       kind: 'text',
       node,
       raw: writeTextOperators(node),
+      placement: null,
     });
     this.commitPage(session, page, command.pageIndex);
     return node;
@@ -232,6 +233,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
       kind: 'image',
       node,
       raw: writeImageOperators(resourceName, command.bounds),
+      placement: null,
     });
     this.commitPage(session, page, command.pageIndex);
     return node;
