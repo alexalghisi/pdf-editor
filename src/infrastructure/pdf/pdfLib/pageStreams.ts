@@ -55,8 +55,14 @@ export function readPageContent(page: PDFPage): string {
 
 export function writePageContent(page: PDFPage, source: string): void {
   const bytes = new TextEncoder().encode(source);
-  const stream = page.doc.context.stream(bytes);
-  page.node.set(PDFName.of('Contents'), stream);
+  const { context } = page.doc;
+  const stream = context.flateStream(bytes);
+  const current = page.node.get(PDFName.of('Contents'));
+  if (current instanceof PDFRef) {
+    context.assign(current, stream);
+    return;
+  }
+  page.node.set(PDFName.of('Contents'), context.register(stream));
 }
 
 export function readImageResources(
