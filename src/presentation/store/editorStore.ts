@@ -51,18 +51,46 @@ export type EditorState = {
   currentPageNodes: () => readonly PdfNode[];
 };
 
+const PAGE_MARGIN = 72;
+const MARGIN_SHARE = 8;
+const TEXT_TOP_OFFSET = 120;
 const TEXT_LINE_STEP = 24;
+const TEXT_WIDTH = 200;
+const TEXT_HEIGHT = 16;
+const IMAGE_SIZE = 160;
+
+function marginOf(box: Rect): number {
+  return Math.min(
+    PAGE_MARGIN,
+    box.width / MARGIN_SHARE,
+    box.height / MARGIN_SHARE,
+  );
+}
 
 function defaultTextBounds(document: PdfDocument, pageIndex: number): Rect {
   const page = getPage(document, pageIndex);
+  const box = page.mediaBox;
+  const margin = marginOf(box);
+  const width = Math.min(TEXT_WIDTH, box.width - margin * 2);
+  const height = Math.min(TEXT_HEIGHT, box.height - margin * 2);
   const lines = page.nodes.filter((node) => node.type === 'text').length;
-  const top = page.mediaBox.height - 120;
-  return rect(72, Math.max(72, top - lines * TEXT_LINE_STEP), 200, 16);
+  const stacked = box.y + box.height - TEXT_TOP_OFFSET - lines * TEXT_LINE_STEP;
+  const y = Math.min(
+    Math.max(box.y + margin, stacked),
+    box.y + box.height - margin - height,
+  );
+  return rect(box.x + margin, y, width, height);
 }
 
 function defaultImageBounds(document: PdfDocument, pageIndex: number): Rect {
-  const page = getPage(document, pageIndex);
-  return rect(72, page.mediaBox.height / 2 - 80, 160, 160);
+  const box = getPage(document, pageIndex).mediaBox;
+  const margin = marginOf(box);
+  const size = Math.min(
+    IMAGE_SIZE,
+    box.width - margin * 2,
+    box.height - margin * 2,
+  );
+  return rect(box.x + margin, box.y + (box.height - size) / 2, size, size);
 }
 
 const RASTER_SCALE = 2;
