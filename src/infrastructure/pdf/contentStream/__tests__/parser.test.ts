@@ -1,4 +1,13 @@
-import { parseContentStream } from '@/infrastructure/pdf/contentStream/parser';
+import {
+  parseContentStream,
+  type ContentFragment,
+} from '@/infrastructure/pdf/contentStream/parser';
+import { joinFragments } from '@/infrastructure/pdf/contentStream/rewriter';
+import { tokenizeContentStream } from '@/infrastructure/pdf/contentStream/tokenizer';
+
+function nodeFragments(fragments: readonly ContentFragment[]) {
+  return fragments.filter((fragment) => fragment.kind !== 'passthrough');
+}
 
 describe('parseContentStream', () => {
   it('emits a text fragment in page user space', () => {
@@ -8,8 +17,9 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    expect(fragments).toHaveLength(1);
-    const fragment = fragments[0];
+    const nodes = nodeFragments(fragments);
+    expect(nodes).toHaveLength(1);
+    const fragment = nodes[0];
     expect(fragment?.kind).toBe('text');
     if (fragment?.kind !== 'text') {
       throw new Error('expected text fragment');
@@ -29,8 +39,9 @@ describe('parseContentStream', () => {
       },
     });
 
-    expect(fragments).toHaveLength(1);
-    const fragment = fragments[0];
+    const nodes = nodeFragments(fragments);
+    expect(nodes).toHaveLength(1);
+    const fragment = nodes[0];
     expect(fragment?.kind).toBe('image');
     if (fragment?.kind !== 'image') {
       throw new Error('expected image fragment');
@@ -62,8 +73,9 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    expect(fragments).toHaveLength(1);
-    const fragment = fragments[0];
+    const nodes = nodeFragments(fragments);
+    expect(nodes).toHaveLength(1);
+    const fragment = nodes[0];
     expect(fragment?.kind).toBe('text');
     if (fragment?.kind !== 'text') {
       throw new Error('expected merged text');
@@ -82,7 +94,7 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    const fragment = fragments[0];
+    const fragment = nodeFragments(fragments)[0];
     expect(fragment?.kind).toBe('text');
     if (fragment?.kind !== 'text') {
       throw new Error('expected text fragment');
@@ -101,7 +113,7 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    const fragment = fragments[0];
+    const fragment = nodeFragments(fragments)[0];
     expect(fragment?.kind).toBe('text');
     if (fragment?.kind !== 'text') {
       throw new Error('expected text fragment');
@@ -118,7 +130,7 @@ describe('parseContentStream', () => {
       imageResources: {},
     });
 
-    const fragment = fragments[0];
+    const fragment = nodeFragments(fragments)[0];
     expect(fragment?.kind).toBe('text');
     if (fragment?.kind !== 'text') {
       throw new Error('expected text fragment');
@@ -142,5 +154,25 @@ describe('parseContentStream', () => {
     expect(texts[1].node.content).toBe('Two');
     expect(texts[1].node.bounds.y).toBeCloseTo(188);
     expect(texts[1].node.bounds.x).toBeCloseTo(100);
+  });
+
+  it('writes an untouched stream back operator for operator', () => {
+    const source = [
+      '.24 0 0 -.24 0 792 cm',
+      'q 3.125 0 0 3.125 0 0 cm 0 0 0 rg',
+      'BT /F1 16 Tf 1 0 0 -1 8 80 Tm <002B0048> Tj 210.5 0 Td [(a) -20 (b)] TJ ET',
+      'q 40 0 0 20 10 30 cm /Im1 Do Q',
+      'Q',
+    ].join('\n');
+
+    const fragments = parseContentStream({
+      source,
+      pageIndex: 0,
+      imageResources: { Im1: { width: 8, height: 4 } },
+    });
+
+    expect(tokenizeContentStream(joinFragments(fragments))).toEqual(
+      tokenizeContentStream(`q ${source} Q`),
+    );
   });
 });
