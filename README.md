@@ -93,7 +93,7 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Extract **text** (`BT`/`Tj`/`TJ`) and **images** (`Do` XObjects) with page-space bounds.
 - Add, update, delete, and move text and images by rewriting the page content stream.
 - Preserve vector art as passthrough operator groups.
-- Untouched operators are written back as they were, so a page that is only partly edited stays byte-for-byte equivalent elsewhere — including pages drawn under a flipped or scaled CTM, as browsers and office suites produce them.
+- Untouched operators are written back as they were, so a page that is only partly edited keeps the rest of its content operator for operator — including pages drawn under a flipped or scaled CTM, as browsers and office suites produce them.
 - Lossless save that restores title, author, creator, and producer.
 - Interactive canvas: tap to select, drag to move, tap a selected text again to edit it, pinch or `−`/`+` to zoom.
 - Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
