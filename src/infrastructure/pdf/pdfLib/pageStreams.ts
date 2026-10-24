@@ -6,24 +6,18 @@ import {
   PDFRawStream,
   PDFRef,
   PDFStream,
+  StandardFontEmbedder,
+  StandardFonts,
   decodePDFRawStream,
   type PDFDocument,
   type PDFPage,
 } from 'pdf-lib';
 
-import { decodePdfBytes } from '@/infrastructure/pdf/bytes';
-import type { ImageResource } from '@/infrastructure/pdf/contentStream/parser';
-
-function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
-}
+import { decodePdfBytes, encodePdfBytes } from '@/infrastructure/pdf/bytes';
+import type {
+  FontMetrics,
+  ImageResource,
+} from '@/infrastructure/pdf/contentStream/parser';
 
 function decodeStream(stream: PDFStream): Uint8Array {
   if (stream instanceof PDFRawStream) {
@@ -38,14 +32,14 @@ export function readPageContent(page: PDFPage): string {
     return '';
   }
   if (contents instanceof PDFArray) {
-    const chunks: Uint8Array[] = [];
+    const chunks: string[] = [];
     for (let i = 0; i < contents.size(); i += 1) {
       const item = contents.lookup(i);
       if (item instanceof PDFStream) {
-        chunks.push(decodeStream(item));
+        chunks.push(decodePdfBytes(decodeStream(item)));
       }
     }
-    return decodePdfBytes(concatBytes(chunks));
+    return chunks.join('\n');
   }
   if (contents instanceof PDFStream) {
     return decodePdfBytes(decodeStream(contents));
@@ -54,9 +48,8 @@ export function readPageContent(page: PDFPage): string {
 }
 
 export function writePageContent(page: PDFPage, source: string): void {
-  const bytes = new TextEncoder().encode(source);
   const { context } = page.doc;
-  const stream = context.flateStream(bytes);
+  const stream = context.flateStream(encodePdfBytes(source));
   const current = page.node.get(PDFName.of('Contents'));
   if (current instanceof PDFRef) {
     context.assign(current, stream);
@@ -165,4 +158,144 @@ export function ensureImageResource(
   }
   xobject.set(PDFName.of(resourceName), imageRef);
   page.node.set(PDFName.of('Resources'), resources);
+}
+
+const STANDARD_FONTS = new Set<string>(Object.values(StandardFonts));
+
+function numberAt(array: PDFArray, index: number): number | null {
+  const value = array.lookup(index);
+  return value instanceof PDFNumber ? value.asNumber() : null;
+}
+
+function standardFontMetrics(baseFont: string): FontMetrics | null {
+  if (!STANDARD_FONTS.has(baseFont)) {
+    return null;
+  }
+  const embedder = StandardFontEmbedder.for(
+    baseFont as Parameters<typeof StandardFontEmbedder.for>[0],
+  );
+  const widths: Record<number, number> = {};
+  for (const codePoint of embedder.encoding.supportedCodePoints) {
+    const glyph = embedder.encoding.encodeUnicodeCodePoint(codePoint);
+    const width = embedder.font.getWidthOfGlyph(glyph.name);
+    if (typeof width === 'number') {
+      widths[glyph.code] = width;
+    }
+  }
+  return { codeBytes: 1, widths, missingWidth: 0 };
+}
+
+function simpleFontMetrics(font: PDFDict): FontMetrics | null {
+  const firstChar = font.lookup(PDFName.of('FirstChar'));
+  const array = font.lookup(PDFName.of('Widths'));
+  if (firstChar instanceof PDFNumber && array instanceof PDFArray) {
+    const widths: Record<number, number> = {};
+    for (let i = 0; i < array.size(); i += 1) {
+      const width = numberAt(array, i);
+      if (width !== null) {
+        widths[firstChar.asNumber() + i] = width;
+      }
+    }
+    const descriptor = font.lookup(PDFName.of('FontDescriptor'));
+    const missing =
+      descriptor instanceof PDFDict
+        ? descriptor.lookup(PDFName.of('MissingWidth'))
+        : undefined;
+    return {
+      codeBytes: 1,
+      widths,
+      missingWidth: missing instanceof PDFNumber ? missing.asNumber() : 0,
+    };
+  }
+  const baseFont = font.lookup(PDFName.of('BaseFont'));
+  return baseFont instanceof PDFName
+    ? standardFontMetrics(baseFont.decodeText())
+    : null;
+}
+
+function compositeFontMetrics(font: PDFDict): FontMetrics | null {
+  const encoding = font.lookup(PDFName.of('Encoding'));
+  if (
+    encoding !== PDFName.of('Identity-H') &&
+    encoding !== PDFName.of('Identity-V')
+  ) {
+    return null;
+  }
+  const descendants = font.lookup(PDFName.of('DescendantFonts'));
+  const descendant =
+    descendants instanceof PDFArray ? descendants.lookup(0) : undefined;
+  if (!(descendant instanceof PDFDict)) {
+    return null;
+  }
+  const dw = descendant.lookup(PDFName.of('DW'));
+  const widths: Record<number, number> = {};
+  const w = descendant.lookup(PDFName.of('W'));
+  if (w instanceof PDFArray) {
+    let i = 0;
+    while (i < w.size()) {
+      const first = numberAt(w, i);
+      const next = w.lookup(i + 1);
+      if (first === null) {
+        break;
+      }
+      if (next instanceof PDFArray) {
+        for (let j = 0; j < next.size(); j += 1) {
+          const width = numberAt(next, j);
+          if (width !== null) {
+            widths[first + j] = width;
+          }
+        }
+        i += 2;
+        continue;
+      }
+      const last = numberAt(w, i + 1);
+      const width = numberAt(w, i + 2);
+      if (last === null || width === null) {
+        break;
+      }
+      for (let code = first; code <= last; code += 1) {
+        widths[code] = width;
+      }
+      i += 3;
+    }
+  }
+  return {
+    codeBytes: 2,
+    widths,
+    missingWidth: dw instanceof PDFNumber ? dw.asNumber() : 1000,
+  };
+}
+
+/**
+ * Glyph widths of the page's fonts, so the parser can advance the text
+ * matrix the way a renderer does. Fonts it cannot measure (Type 3, CMaps
+ * other than Identity) are left out and fall back to an estimate.
+ */
+export function readFontMetrics(page: PDFPage): Record<string, FontMetrics> {
+  const resources = page.node.Resources();
+  const fonts =
+    resources instanceof PDFDict
+      ? resources.lookup(PDFName.of('Font'))
+      : undefined;
+  if (!(fonts instanceof PDFDict)) {
+    return {};
+  }
+  const result: Record<string, FontMetrics> = {};
+  for (const [key, ref] of fonts.entries()) {
+    const font = page.doc.context.lookup(ref);
+    if (!(font instanceof PDFDict)) {
+      continue;
+    }
+    const subtype = font.lookup(PDFName.of('Subtype'));
+    const metrics =
+      subtype === PDFName.of('Type0')
+        ? compositeFontMetrics(font)
+        : subtype === PDFName.of('Type3')
+          ? null
+          : simpleFontMetrics(font);
+    if (metrics !== null) {
+      result[key.decodeText()] = metrics;
+    }
+  }
+  return result;
 }

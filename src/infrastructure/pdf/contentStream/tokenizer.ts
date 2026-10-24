@@ -23,20 +23,9 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 function decodePdfHexString(hex: string): string {
-  const bytes = hexToBytes(hex);
-  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
-    const chars: string[] = [];
-    for (let i = 2; i + 1 < bytes.length; i += 2) {
-      const hi = bytes[i];
-      const lo = bytes[i + 1];
-      if (hi === undefined || lo === undefined) {
-        break;
-      }
-      chars.push(String.fromCharCode((hi << 8) | lo));
-    }
-    return chars.join('');
-  }
-  return Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return Array.from(hexToBytes(hex), (byte) => String.fromCharCode(byte)).join(
+    '',
+  );
 }
 
 function decodeName(raw: string): string {
