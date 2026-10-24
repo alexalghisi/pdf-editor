@@ -3,7 +3,7 @@ import type { PdfDocument } from '@/domain/entities/PdfDocument';
 import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
 import { PdfDomainError } from '@/domain/errors/PdfDomainError';
 import { createPdfObjectId } from '@/domain/valueObjects/PdfObjectId';
-import { rect } from '@/domain/valueObjects/Rect';
+import { rect, type Rect } from '@/domain/valueObjects/Rect';
 import { BLACK } from '@/domain/valueObjects/RgbColor';
 import { err, ok } from '@/shared/result';
 import { resetAppContainer } from '@/infrastructure/di/container';
@@ -78,14 +78,20 @@ function textNode(ordinal: number): PdfTextNode {
   };
 }
 
-function documentStub(nodes: PdfTextNode[] = []): PdfDocument {
+const LETTER = rect(0, 0, 612, 792);
+const OFFSET_LETTER = rect(100, 200, 612, 792);
+
+function documentStub(
+  nodes: PdfTextNode[] = [],
+  mediaBox: Rect = LETTER,
+): PdfDocument {
   return {
     id: 'doc-1',
     pageCount: 1,
     pages: [
       {
         index: 0,
-        mediaBox: { x: 0, y: 0, width: 612, height: 792 },
+        mediaBox,
         nodes,
       },
     ],
@@ -284,6 +290,33 @@ describe('useEditorStore', () => {
       );
     });
 
+    it('places default text inside a media box that is not at the origin', async () => {
+      withDocument(documentStub([], OFFSET_LETTER));
+      mockMutateAddText.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addText('Hello');
+
+      expect(mockMutateAddText).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          bounds: rect(100 + 72, 200 + 792 - 120, 200, 16),
+        }),
+      );
+    });
+
+    it('keeps default text inside a page smaller than the margins', async () => {
+      withDocument(documentStub([], rect(0, 0, 48, 36)));
+      mockMutateAddText.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addText('Hello');
+
+      const [, command] = mockMutateAddText.mock.calls[0] ?? [];
+      expect(command.bounds.x).toBeGreaterThanOrEqual(0);
+      expect(command.bounds.y).toBeGreaterThanOrEqual(0);
+      expect(command.bounds.x + command.bounds.width).toBeLessThanOrEqual(48);
+      expect(command.bounds.y + command.bounds.height).toBeLessThanOrEqual(36);
+    });
+
     it('honours explicit bounds, size and colour', async () => {
       withDocument(documentStub());
       mockMutateAddText.mockResolvedValue(ok(documentStub()));
@@ -361,6 +394,33 @@ describe('useEditorStore', () => {
         mimeType: 'image/png',
         bounds: rect(72, 792 / 2 - 80, 160, 160),
       });
+    });
+
+    it('centres the image inside a media box that is not at the origin', async () => {
+      withDocument(documentStub([], OFFSET_LETTER));
+      mockMutateAddImage.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addImage(new Uint8Array(), 'image/png');
+
+      expect(mockMutateAddImage).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          bounds: rect(100 + 72, 200 + 792 / 2 - 80, 160, 160),
+        }),
+      );
+    });
+
+    it('shrinks the default image to fit a small page', async () => {
+      withDocument(documentStub([], rect(0, 0, 48, 36)));
+      mockMutateAddImage.mockResolvedValue(ok(documentStub()));
+
+      await useEditorStore.getState().addImage(new Uint8Array(), 'image/png');
+
+      const [, command] = mockMutateAddImage.mock.calls[0] ?? [];
+      expect(command.bounds.x).toBeGreaterThanOrEqual(0);
+      expect(command.bounds.y).toBeGreaterThanOrEqual(0);
+      expect(command.bounds.x + command.bounds.width).toBeLessThanOrEqual(48);
+      expect(command.bounds.y + command.bounds.height).toBeLessThanOrEqual(36);
     });
 
     it('reports a rejected mutation', async () => {
