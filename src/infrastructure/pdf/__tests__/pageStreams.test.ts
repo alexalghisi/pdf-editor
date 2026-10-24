@@ -3,6 +3,7 @@ import { PDFDocument, PDFName } from 'pdf-lib';
 import {
   readFontMetrics,
   readPageContent,
+  readVisibleBox,
   writePageContent,
 } from '@/infrastructure/pdf/pdfLib/pageStreams';
 
@@ -85,5 +86,44 @@ describe('pageStreams', () => {
 
   it('reads no fonts from a page without font resources', async () => {
     expect(readFontMetrics(await blankPage())).toEqual({});
+  });
+
+  it('lays the page out on the CropBox a viewer shows', async () => {
+    const page = await blankPage();
+    page.setMediaBox(0, 0, 600, 800);
+    page.setCropBox(50, 60, 300, 400);
+
+    expect(readVisibleBox(page)).toEqual({
+      x: 50,
+      y: 60,
+      width: 300,
+      height: 400,
+    });
+  });
+
+  it('clips a CropBox that reaches past the MediaBox', async () => {
+    const page = await blankPage();
+    page.setMediaBox(10, 20, 200, 300);
+    page.setCropBox(-50, 100, 1000, 1000);
+
+    expect(readVisibleBox(page)).toEqual({
+      x: 10,
+      y: 100,
+      width: 200,
+      height: 220,
+    });
+  });
+
+  it('uses the MediaBox when there is no CropBox', async () => {
+    const page = await blankPage();
+    page.setMediaBox(5, 5, 100, 100);
+    page.node.delete(PDFName.of('CropBox'));
+
+    expect(readVisibleBox(page)).toEqual({
+      x: 5,
+      y: 5,
+      width: 100,
+      height: 100,
+    });
   });
 });
