@@ -33,6 +33,7 @@ import { parseContentStream } from '@/infrastructure/pdf/contentStream/parser';
 import type { ContentFragment } from '@/infrastructure/pdf/contentStream/parser';
 import {
   joinFragments,
+  removeTextFragment,
   rewriteImageFragment,
   rewriteTextFragment,
   writeImageOperators,
@@ -42,8 +43,9 @@ import { startsWithPdfHeader } from '@/infrastructure/pdf/bytes';
 import {
   ensureFontResource,
   ensureImageResource,
+  readFontMetrics,
   readImageResources,
-  readMediaBox,
+  readVisibleBox,
   readPageContent,
   writePageContent,
 } from '@/infrastructure/pdf/pdfLib/pageStreams';
@@ -299,18 +301,24 @@ export class PdfLibAstEngine implements PdfAstEngine {
     const location = parsePdfObjectId(nodeId);
     const page = this.requireNativePage(session, location.pageIndex);
     const fragments = this.pageFragments(session, location.pageIndex);
-    const next = fragments.filter((fragment) => {
-      if (fragment.kind === 'passthrough') {
-        return true;
-      }
-      return fragment.node.id !== nodeId;
-    });
-    if (next.length === fragments.length) {
+    const index = fragments.findIndex(
+      (fragment) =>
+        fragment.kind !== 'passthrough' && fragment.node.id === nodeId,
+    );
+    const current = fragments[index];
+    if (current === undefined || current.kind === 'passthrough') {
       throw new PdfDomainError(
         'NODE_NOT_FOUND',
         `Content stream does not contain ${nodeId}`,
       );
     }
+    const remainder =
+      current.kind === 'text' ? removeTextFragment(current) : null;
+    const next = [
+      ...fragments.slice(0, index),
+      ...(remainder === null ? [] : [remainder]),
+      ...fragments.slice(index + 1),
+    ];
     session.fragmentsByPage.set(location.pageIndex, next);
     this.commitPage(session, page, location.pageIndex);
   }
@@ -377,6 +385,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
       source: readPageContent(page),
       pageIndex,
       imageResources: readImageResources(page),
+      fonts: readFontMetrics(page),
     });
   }
 
@@ -493,7 +502,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragmentsByPage: Map<number, ContentFragment[]>,
   ): PdfDocument {
     const pages: DomainPage[] = pdf.getPages().map((page, index) => {
-      const box = readMediaBox(page);
+      const box = readVisibleBox(page);
       const fragments = fragmentsByPage.get(index) ?? [];
       const nodes: PdfNode[] = fragments.flatMap((fragment) =>
         fragment.kind === 'passthrough' ? [] : [fragment.node],

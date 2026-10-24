@@ -1,3 +1,5 @@
+import { PDFDocument } from 'pdf-lib';
+
 import { PdfLibAstEngine } from '@/infrastructure/pdf/PdfLibAstEngine';
 import { buildFixturePdf } from '@/infrastructure/pdf/testing/buildFixturePdf';
 import { PdfDomainError } from '@/domain/errors/PdfDomainError';
@@ -27,6 +29,21 @@ describe('PdfAstEngine.parse', () => {
       y: 0,
       width: 612,
       height: 792,
+    });
+  });
+
+  it('reports the cropped area of a page as its box', async () => {
+    const source = await PDFDocument.create();
+    const page = source.addPage([600, 800]);
+    page.setCropBox(50, 60, 300, 400);
+
+    const document = await engine.load(await source.save());
+
+    expect(getPage(document, 0).mediaBox).toEqual({
+      x: 50,
+      y: 60,
+      width: 300,
+      height: 400,
     });
   });
 
