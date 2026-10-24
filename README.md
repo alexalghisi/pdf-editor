@@ -14,6 +14,8 @@ A professional React Native PDF editor that loads, parses, and **rewrites the PD
 | ----------------------------------------- | ---------------------------------------------------------------------- |
 | ![Editor on desktop](docs/editor-web.jpg) | <img src="docs/editor-mobile.jpg" alt="Editor on a phone" width="260"> |
 
+![Moving a heading and typing a new line on a page printed from Chrome](docs/editor-demo.gif)
+
 The page preview is the real PDF, re-rendered after each edit. Here a blank letter page has two text blocks and an image. They were inserted, typed and dragged in place, and the result exports as a regular PDF.
 
 The project is built with TDD, Clean Architecture, and strict TypeScript. Page rasterization runs in a JSI/Expo native module (PDFKit on iOS, `PdfRenderer` on Android) so large documents never block the JS thread.
@@ -91,6 +93,7 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Extract **text** (`BT`/`Tj`/`TJ`) and **images** (`Do` XObjects) with page-space bounds.
 - Add, update, delete, and move text and images by rewriting the page content stream.
 - Preserve vector art as passthrough operator groups.
+- Untouched operators are written back as they were, so a page that is only partly edited keeps the rest of its content operator for operator — including pages drawn under a flipped or scaled CTM, as browsers and office suites produce them.
 - Lossless save that restores title, author, creator, and producer.
 - Interactive canvas: tap to select, drag to move, tap a selected text again to edit it, pinch or `−`/`+` to zoom.
 - Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
