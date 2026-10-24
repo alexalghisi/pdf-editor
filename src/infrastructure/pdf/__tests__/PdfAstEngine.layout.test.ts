@@ -1,3 +1,5 @@
+import { PDFDocument } from 'pdf-lib';
+
 import { getPage, type PdfDocument } from '@/domain/entities/PdfDocument';
 import { pageNodesOfType } from '@/domain/entities/PdfPage';
 import type { PdfImageNode } from '@/domain/entities/PdfImageNode';
@@ -5,7 +7,9 @@ import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
 import { BLACK } from '@/domain/valueObjects/RgbColor';
 import { rect } from '@/domain/valueObjects/Rect';
 import { PdfLibAstEngine } from '@/infrastructure/pdf/PdfLibAstEngine';
+import { readPageContent } from '@/infrastructure/pdf/pdfLib/pageStreams';
 import { buildFixturePdf } from '@/infrastructure/pdf/testing/buildFixturePdf';
+import { TINY_PNG } from '@/infrastructure/pdf/testing/tinyPng';
 
 const BROWSER_STYLE_PAGE = [
   '.24 0 0 -.24 0 792 cm',
@@ -184,6 +188,38 @@ describe('PdfAstEngine layout under a transformed page', () => {
     expect(moved.bounds.y).toBeCloseTo(100, 3);
     expect(moved.bounds.width).toBeCloseTo(100, 3);
     expect(moved.bounds.height).toBeCloseTo(50, 3);
+  });
+
+  describe('inline images', () => {
+    const inlineImage =
+      'BI /W 2 /H 2 /CS /G /BPC 8 ID \u0001\u0002\u0003\u0004 EI';
+    const page = `q 80 0 0 40 100 200 cm ${inlineImage} Q`;
+
+    it('moves an inline image and keeps its data intact', async () => {
+      const document = await engine.load(buildFixturePdf({ content: page }));
+      const image = onlyImage(document);
+
+      await engine.moveNode(document, image.id, rect(300, 500, 80, 40));
+      const saved = await engine.serialize(document);
+      const moved = onlyImage(await engine.load(saved));
+      const pdf = await PDFDocument.load(saved);
+
+      expect(moved.bounds.x).toBeCloseTo(300, 3);
+      expect(moved.bounds.y).toBeCloseTo(500, 3);
+      expect(readPageContent(pdf.getPage(0))).toContain(inlineImage);
+    });
+
+    it('refuses to replace the pixels of an inline image', async () => {
+      const document = await engine.load(buildFixturePdf({ content: page }));
+
+      await expect(
+        engine.updateImage(document, {
+          nodeId: onlyImage(document).id,
+          imageBytes: TINY_PNG,
+          mimeType: 'image/png',
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_IMAGE' });
+    });
   });
 
   it('measures runs with the font widths a renderer uses', async () => {
