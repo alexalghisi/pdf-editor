@@ -91,6 +91,46 @@ describe('tokenizeContentStream', () => {
       expect(tokens[0]).toMatchObject({ value: 'BI /W 1 /H 1 ID xEIy EI' });
     });
 
+    it('reads unfiltered data by its length even when it holds " EI "', () => {
+      const image = 'BI /W 8 /H 1 /CS /G /BPC 8 ID ab EI cd EI';
+
+      expect(tokenizeContentStream(`q ${image} Q`)).toEqual([
+        { kind: 'operator', value: 'q' },
+        expect.objectContaining({ kind: 'inlineImage', value: image }),
+        { kind: 'operator', value: 'Q' },
+      ]);
+    });
+
+    it('sizes image masks, RGB and indexed data from the dictionary', () => {
+      const mask = 'BI /W 9 /H 1 /IM true ID \u0001 EI\u0002 EI';
+      const rgb = 'BI /W 1 /H 1 /CS /RGB /BPC 8 ID  EI EI';
+      const indexed =
+        'BI /W 3 /H 1 /CS [/I /RGB 1 <000000FFFFFF>] /BPC 8 ID  EI EI';
+
+      for (const image of [mask, rgb, indexed]) {
+        expect(tokenizeContentStream(`${image} Q`)).toEqual([
+          expect.objectContaining({ kind: 'inlineImage', value: image }),
+          { kind: 'operator', value: 'Q' },
+        ]);
+      }
+    });
+
+    it('prefers a declared /L length', () => {
+      const image = 'BI /W 1 /H 1 /F /AHx /L 4 ID EI > EI';
+
+      expect(tokenizeContentStream(`${image} Q`)[0]).toMatchObject({
+        value: image,
+      });
+    });
+
+    it('falls back to scanning when the computed length does not end at EI', () => {
+      const image = 'BI /W 1 /H 1 /CS /G /BPC 8 ID abc EI';
+
+      expect(tokenizeContentStream(`${image} Q`)[0]).toMatchObject({
+        value: image,
+      });
+    });
+
     it('takes the rest of the stream when EI is missing', () => {
       const tokens = tokenizeContentStream('BI /W 1 /H 1 ID \u0001\u0002');
 
