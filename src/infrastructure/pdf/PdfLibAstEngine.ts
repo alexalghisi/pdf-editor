@@ -44,7 +44,7 @@ import {
   ensureImageResource,
   readFontMetrics,
   readImageResources,
-  readMediaBox,
+  readVisibleBox,
   readPageContent,
   writePageContent,
 } from '@/infrastructure/pdf/pdfLib/pageStreams';
@@ -494,7 +494,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragmentsByPage: Map<number, ContentFragment[]>,
   ): PdfDocument {
     const pages: DomainPage[] = pdf.getPages().map((page, index) => {
-      const box = readMediaBox(page);
+      const box = readVisibleBox(page);
       const fragments = fragmentsByPage.get(index) ?? [];
       const nodes: PdfNode[] = fragments.flatMap((fragment) =>
         fragment.kind === 'passthrough' ? [] : [fragment.node],

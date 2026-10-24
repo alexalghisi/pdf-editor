@@ -127,6 +127,38 @@ export function readMediaBox(page: PDFPage): {
   return { x: 0, y: 0, width: size.width, height: size.height };
 }
 
+/**
+ * The part of the page a viewer shows: the CropBox clipped to the MediaBox
+ * (ISO 32000-1, 14.11.2). pdf.js, PDFKit and Poppler all render this box,
+ * so overlays have to be laid out against it rather than the MediaBox.
+ */
+export function readVisibleBox(page: PDFPage): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const media = readMediaBox(page);
+  if (page.node.CropBox() === undefined) {
+    return media;
+  }
+  const crop = page.getCropBox();
+  const left = Math.max(media.x, Math.min(crop.x, crop.x + crop.width));
+  const bottom = Math.max(media.y, Math.min(crop.y, crop.y + crop.height));
+  const right = Math.min(
+    media.x + media.width,
+    Math.max(crop.x, crop.x + crop.width),
+  );
+  const top = Math.min(
+    media.y + media.height,
+    Math.max(crop.y, crop.y + crop.height),
+  );
+  if (right <= left || top <= bottom) {
+    return media;
+  }
+  return { x: left, y: bottom, width: right - left, height: top - bottom };
+}
+
 export function ensureFontResource(
   page: PDFPage,
   pdf: PDFDocument,
