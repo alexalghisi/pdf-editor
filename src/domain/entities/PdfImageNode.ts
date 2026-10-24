@@ -6,7 +6,7 @@ export type PdfImageNode = {
   readonly type: 'image';
   readonly pageIndex: number;
   readonly bounds: Rect;
-  readonly resourceName: string;
+  readonly resourceName: string | null;
   readonly pixelWidth: number;
   readonly pixelHeight: number;
 };

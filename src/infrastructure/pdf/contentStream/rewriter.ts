@@ -205,14 +205,6 @@ export function rewriteImageFragment(
 ): ImageFragment {
   const node = { ...fragment.node, bounds };
   const { placement } = fragment;
-  if (placement === null) {
-    return {
-      kind: 'image',
-      node,
-      raw: writeImageOperators(node.resourceName, bounds),
-      placement,
-    };
-  }
   const transform = shiftInPageSpace(
     placement.transform,
     placement.ctm,
@@ -227,16 +219,6 @@ export function rewriteImageFragment(
   };
 }
 
-function isAppended(fragment: ContentFragment): boolean {
-  return fragment.kind !== 'passthrough' && fragment.placement === null;
-}
-
 export function joinFragments(fragments: readonly ContentFragment[]): string {
-  const original = fragments.filter((fragment) => !isAppended(fragment));
-  const appended = fragments.filter(isAppended);
-  const isolated =
-    original.length > 0
-      ? ['q', ...original.map((fragment) => fragment.raw), 'Q']
-      : [];
-  return [...isolated, ...appended.map((fragment) => fragment.raw)].join('\n');
+  return fragments.map((fragment) => fragment.raw).join('\n');
 }
