@@ -18,14 +18,27 @@ export type ImageResource = {
   readonly height: number;
 };
 
+/** Glyph widths of a font resource, in thousandths of text space. */
+export type FontMetrics = {
+  readonly codeBytes: 1 | 2;
+  readonly widths: Readonly<Record<number, number>>;
+  readonly missingWidth: number;
+};
+
 export type TextPlacement = {
   readonly ctm: Matrix;
   readonly textMatrix: Matrix;
   readonly lineMatrix: Matrix;
+  /** Text matrix the original run left behind. */
+  readonly endMatrix: Matrix;
+  readonly endFontSize: number;
+  readonly endHorizScale: number;
   readonly fontSize: number;
   readonly fontScale: number;
   readonly color: RgbColor;
   readonly body: string;
+  /** State operators of the original body, kept when the body is rewritten. */
+  readonly state: string | null;
 };
 
 export type ImagePlacement = {
@@ -53,6 +66,7 @@ export type ParseContentStreamInput = {
   readonly source: string;
   readonly pageIndex: number;
   readonly imageResources: Readonly<Record<string, ImageResource>>;
+  readonly fonts?: Readonly<Record<string, FontMetrics>>;
 };
 
 type GraphicsState = {
@@ -68,6 +82,8 @@ type TextState = {
   leading: number;
   horizScale: number;
   rise: number;
+  charSpacing: number;
+  wordSpacing: number;
 };
 
 const HELVETICA_AVG_WIDTH = 0.55;
@@ -95,6 +111,30 @@ function decodeShownText(content: string): string {
 
 function estimateTextWidth(content: string, fontSize: number): number {
   return Math.max(content.length * fontSize * HELVETICA_AVG_WIDTH, 0);
+}
+
+function measureString(
+  raw: string,
+  state: TextState,
+  metrics: FontMetrics | undefined,
+): number {
+  if (metrics === undefined) {
+    return (
+      estimateTextWidth(decodeShownText(raw), state.fontSize) * state.horizScale
+    );
+  }
+  let advance = 0;
+  const step = metrics.codeBytes;
+  for (let i = 0; i + step <= raw.length; i += step) {
+    const code =
+      step === 2
+        ? (raw.charCodeAt(i) << 8) | raw.charCodeAt(i + 1)
+        : raw.charCodeAt(i);
+    const width = metrics.widths[code] ?? metrics.missingWidth;
+    const space = step === 1 && code === 32 ? state.wordSpacing : 0;
+    advance += (width / 1000) * state.fontSize + state.charSpacing + space;
+  }
+  return advance * state.horizScale;
 }
 
 function matrixScaleY(matrix: Matrix): number {
@@ -239,6 +279,10 @@ function applyTextOperator(
       return first !== null ? { ...state, horizScale: first / 100 } : state;
     case 'Ts':
       return first !== null ? { ...state, rise: first } : state;
+    case 'Tc':
+      return first !== null ? { ...state, charSpacing: first } : state;
+    case 'Tw':
+      return first !== null ? { ...state, wordSpacing: first } : state;
     case 'Td':
       return first !== null && second !== null
         ? withLineShift(state, first, second)
@@ -278,8 +322,8 @@ function inlineImageSize(entries: readonly PdfToken[]): ImageResource | null {
 
 function tjAdvance(
   token: PdfToken | undefined,
-  fontSize: number,
-  horizScale: number,
+  state: TextState,
+  metrics: FontMetrics | undefined,
 ): { content: string; advance: number } {
   if (token?.kind !== 'array') {
     return { content: '', advance: 0 };
@@ -288,13 +332,12 @@ function tjAdvance(
   let advance = 0;
   for (const item of token.value) {
     if (item.kind === 'string') {
-      const shown = decodeShownText(item.value);
-      content += shown;
-      advance += estimateTextWidth(shown, fontSize) * horizScale;
+      content += decodeShownText(item.value);
+      advance += measureString(item.value, state, metrics);
       continue;
     }
     if (item.kind === 'number') {
-      advance += (-item.value / 1000) * fontSize * horizScale;
+      advance += (-item.value / 1000) * state.fontSize * state.horizScale;
     }
   }
   return { content, advance };
@@ -349,23 +392,34 @@ export function parseContentStream(
       leading: 0,
       horizScale: 1,
       rise: 0,
+      charSpacing: 0,
+      wordSpacing: 0,
     };
   };
 
+  const fontOf = (text: TextState): FontMetrics | undefined =>
+    input.fonts?.[text.fontName];
+
   const emitText = (
-    operator: PdfToken,
+    showTokens: readonly PdfToken[],
     content: string,
     advance: number,
   ): void => {
     const text = textRef.value;
     const shown = decodeShownText(content);
     if (text === null || shown.length === 0) {
-      passthrough.push(...operands, operator);
+      passthrough.push(...showTokens);
       if (text !== null && advance !== 0) {
         textRef.value = withTmAdvance(text, advance, 0);
       }
       return;
     }
+    const after = withTmAdvance(text, advance, 0);
+    const end = {
+      endMatrix: after.textMatrix,
+      endFontSize: text.fontSize,
+      endHorizScale: text.horizScale,
+    };
     const size = paintedSize(graphics.ctm, text);
     const pagePoint = applyToPoint(
       multiply(graphics.ctm, text.textMatrix),
@@ -387,7 +441,7 @@ export function parseContentStream(
       fontSize: size,
       color: graphics.fill,
     };
-    const show = serializeTokens([...operands, operator]);
+    const show = serializeTokens(showTokens);
     const previous = openRun === null ? undefined : fragments[openRun];
     if (
       openRun !== null &&
@@ -405,6 +459,7 @@ export function parseContentStream(
         raw: body,
         placement: {
           ...previous.placement,
+          ...end,
           lineMatrix: text.textLineMatrix,
           body,
         },
@@ -419,25 +474,27 @@ export function parseContentStream(
           ctm: graphics.ctm,
           textMatrix: text.textMatrix,
           lineMatrix: text.textLineMatrix,
+          ...end,
           fontSize: text.fontSize,
           fontScale: text.fontSize / size,
           color: graphics.fill,
           body: show,
+          state: null,
         },
       });
       openRun = fragments.length - 1;
     }
-    textRef.value = withTmAdvance(text, advance, 0);
+    textRef.value = after;
   };
 
-  const showString = (operator: PdfToken, content: string): void => {
+  const showString = (
+    showTokens: readonly PdfToken[],
+    content: string,
+  ): void => {
     const text = textRef.value;
-    const shown = decodeShownText(content);
     const advance =
-      text === null
-        ? 0
-        : estimateTextWidth(shown, text.fontSize) * text.horizScale;
-    emitText(operator, content, advance);
+      text === null ? 0 : measureString(content, text, fontOf(text));
+    emitText(showTokens, content, advance);
   };
 
   const emitImage = (
@@ -508,17 +565,45 @@ export function parseContentStream(
     } else if (op === 'ET') {
       textRef.value = null;
     } else if (text !== null) {
-      if (op === 'Tj' || op === "'" || op === '"') {
-        if (op !== 'Tj') {
-          textRef.value = nextLine(text);
+      if (op === 'Tj') {
+        showString([...operands, token], asString(operands[0]) ?? '');
+        operands.length = 0;
+        continue;
+      }
+      if (
+        (op === "'" && operands.length === 1) ||
+        (op === '"' && operands.length === 3)
+      ) {
+        // ' and " move to the next line before they show. The move is kept
+        // as its own T* (and " as Tw/Tc), so the run starts at its own text
+        // matrix and can be moved or rewritten without dropping a line.
+        let state = text;
+        if (op === '"') {
+          state = applyTextOperator(state, 'Tw', operands.slice(0, 1));
+          state = applyTextOperator(state, 'Tc', operands.slice(1, 2));
+          passthrough.push(
+            ...operands.slice(0, 1),
+            { kind: 'operator', value: 'Tw' },
+            ...operands.slice(1, 2),
+            { kind: 'operator', value: 'Tc' },
+          );
         }
-        showString(token, asString(operands[op === '"' ? 2 : 0]) ?? '');
+        passthrough.push({ kind: 'operator', value: 'T*' });
+        textRef.value = nextLine(state);
+        const shown = operands[operands.length - 1];
+        showString(
+          [
+            ...(shown === undefined ? [] : [shown]),
+            { kind: 'operator', value: 'Tj' },
+          ],
+          asString(shown) ?? '',
+        );
         operands.length = 0;
         continue;
       }
       if (op === 'TJ') {
-        const shown = tjAdvance(operands[0], text.fontSize, text.horizScale);
-        emitText(token, shown.content, shown.advance);
+        const shown = tjAdvance(operands[0], text, fontOf(text));
+        emitText([...operands, token], shown.content, shown.advance);
         operands.length = 0;
         continue;
       }

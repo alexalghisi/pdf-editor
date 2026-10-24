@@ -33,6 +33,27 @@ const FLIPPED_IMAGE_PAGE = [
   'Q',
 ].join('\n');
 
+const SAME_LINE_PAGE = [
+  'BT',
+  '/F1 12 Tf',
+  '72 700 Td',
+  '1 0 0 rg',
+  '(Alpha) Tj',
+  '0 0 1 rg',
+  '(Beta) Tj',
+  'ET',
+].join('\n');
+
+const QUOTE_PAGE = [
+  'BT',
+  '/F1 12 Tf',
+  '14 TL',
+  '72 700 Td',
+  '(Line one) Tj',
+  "(Line two) '",
+  'ET',
+].join('\n');
+
 function textNode(document: PdfDocument, content: string): PdfTextNode {
   const node = pageNodesOfType(getPage(document, 0), 'text').find(
     (candidate) => candidate.content === content,
@@ -199,5 +220,73 @@ describe('PdfAstEngine layout under a transformed page', () => {
         }),
       ).rejects.toMatchObject({ code: 'UNSUPPORTED_IMAGE' });
     });
+  });
+
+  it('measures runs with the font widths a renderer uses', async () => {
+    const document = await engine.load(
+      buildFixturePdf({ content: SAME_LINE_PAGE }),
+    );
+
+    // Helvetica: A 667 + l 222 + p 556 + h 556 + a 556 = 2557 / 1000 * 12
+    expect(textNode(document, 'Beta').bounds.x).toBeCloseTo(72 + 30.684, 3);
+  });
+
+  it.each([
+    ['moving', 'move'],
+    ['editing', 'edit'],
+    ['deleting', 'delete'],
+  ])(
+    'keeps a run shown right after another in place when %s the first',
+    async (_label, action) => {
+      const document = await engine.load(
+        buildFixturePdf({ content: SAME_LINE_PAGE }),
+      );
+      const alpha = textNode(document, 'Alpha');
+      const beta = textNode(document, 'Beta');
+
+      if (action === 'move') {
+        await engine.moveNode(document, alpha.id, rect(300, 400, 30, 12));
+      } else if (action === 'edit') {
+        await engine.updateText(document, { nodeId: alpha.id, content: 'A' });
+      } else {
+        await engine.deleteNode(document, alpha.id);
+      }
+      const after = textNode(await reload(document), 'Beta');
+
+      expect(after.bounds.x).toBeCloseTo(beta.bounds.x, 3);
+      expect(after.bounds.y).toBeCloseTo(beta.bounds.y, 3);
+      expect(after.color).toEqual(beta.color);
+    },
+  );
+
+  it("keeps a run shown with ' on its own line when it is moved", async () => {
+    const document = await engine.load(
+      buildFixturePdf({ content: QUOTE_PAGE }),
+    );
+    const second = textNode(document, 'Line two');
+
+    await engine.moveNode(
+      document,
+      second.id,
+      rect(second.bounds.x + 100, second.bounds.y, 50, 12),
+    );
+    const moved = textNode(await reload(document), 'Line two');
+
+    expect(second.bounds.y).toBeCloseTo(686, 3);
+    expect(moved.bounds.x).toBeCloseTo(172, 3);
+    expect(moved.bounds.y).toBeCloseTo(686, 3);
+  });
+
+  it("keeps the line below in place when a run before ' is edited", async () => {
+    const document = await engine.load(
+      buildFixturePdf({ content: QUOTE_PAGE }),
+    );
+    const first = textNode(document, 'Line one');
+
+    await engine.updateText(document, { nodeId: first.id, content: 'Short' });
+    const second = textNode(await reload(document), 'Line two');
+
+    expect(second.bounds.x).toBeCloseTo(72, 3);
+    expect(second.bounds.y).toBeCloseTo(686, 3);
   });
 });

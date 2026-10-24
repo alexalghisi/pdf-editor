@@ -1,12 +1,20 @@
 import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
-import { shiftInPageSpace, type Matrix } from '@/domain/valueObjects/Matrix';
+import {
+  invert,
+  multiply,
+  shiftInPageSpace,
+  type Matrix,
+} from '@/domain/valueObjects/Matrix';
 import type { Rect } from '@/domain/valueObjects/Rect';
 import type { RgbColor } from '@/domain/valueObjects/RgbColor';
 import {
   escapePdfLiteral,
   formatPdfNumber,
   serializeToken,
+  serializeTokens,
 } from '@/infrastructure/pdf/contentStream/serialize';
+import { tokenizeContentStream } from '@/infrastructure/pdf/contentStream/tokenizer';
+import type { PdfToken } from '@/infrastructure/pdf/contentStream/tokens';
 import type {
   ContentFragment,
   TextPlacement,
@@ -72,12 +80,86 @@ function inlineShow(node: PdfTextNode, placement: TextPlacement): string {
     .join(' ');
 }
 
+const DROPPED_FROM_STATE = new Set(['Tj', 'TJ', "'", '"', 'Td', 'T*', 'Tm']);
+
+/**
+ * The operators of a run's body that set state for what follows it
+ * (spacing, scaling, leading, rise, font, colour), without its glyphs or
+ * its moves. A rewritten or deleted run keeps them so later text is unchanged.
+ */
+export function textStateOperators(body: string): string {
+  const kept: PdfToken[] = [];
+  let operands: PdfToken[] = [];
+  for (const token of tokenizeContentStream(body)) {
+    if (token.kind !== 'operator') {
+      operands.push(token);
+      continue;
+    }
+    if (token.value === 'TD') {
+      const ty = operands[1];
+      if (ty?.kind === 'number') {
+        kept.push(
+          { kind: 'number', value: -ty.value },
+          { kind: 'operator', value: 'TL' },
+        );
+      }
+    } else if (!DROPPED_FROM_STATE.has(token.value)) {
+      kept.push(...operands, token);
+    }
+    operands = [];
+  }
+  return serializeTokens(kept);
+}
+
+/**
+ * Restores the line matrix and moves the text matrix to where the original
+ * run ended, so a run shown after it without positioning of its own stays
+ * where it was.
+ */
+function restoreTextPosition(placement: TextPlacement): string {
+  const reset = `${numbers(placement.lineMatrix)} Tm`;
+  const [a, b, c, d] = placement.lineMatrix;
+  const scale = placement.endFontSize * placement.endHorizScale;
+  if (a * d - b * c === 0 || scale === 0) {
+    return reset;
+  }
+  const offset = multiply(invert(placement.lineMatrix), placement.endMatrix);
+  const dx = offset[4];
+  if (Math.abs(offset[5]) > 1e-6 || Math.abs(dx) < 1e-9) {
+    return reset;
+  }
+  return `${reset} [${formatPdfNumber((-dx * 1000) / scale)}] TJ`;
+}
+
 function positionedRun(textMatrix: Matrix, placement: TextPlacement): string {
   return [
     `${numbers(textMatrix)} Tm`,
     placement.body,
-    `${numbers(placement.lineMatrix)} Tm`,
-  ].join(' ');
+    placement.state ?? '',
+    restoreTextPosition(placement),
+  ]
+    .filter((part) => part.length > 0)
+    .join(' ');
+}
+
+/**
+ * What a deleted run leaves in the stream: no glyphs, but the state and text
+ * position it handed to the rest of its text object.
+ */
+export function removeTextFragment(
+  fragment: TextFragment,
+): ContentFragment | null {
+  const { placement } = fragment;
+  if (placement === null) {
+    return null;
+  }
+  const raw = [
+    placement.state ?? textStateOperators(placement.body),
+    restoreTextPosition(placement),
+  ]
+    .filter((part) => part.length > 0)
+    .join(' ');
+  return { kind: 'passthrough', raw };
 }
 
 export function rewriteTextFragment(
@@ -104,6 +186,10 @@ export function rewriteTextFragment(
       node.bounds.y - fragment.node.bounds.y,
     ),
     body: restyled ? inlineShow(node, placement) : placement.body,
+    state:
+      restyled && placement.state === null
+        ? textStateOperators(placement.body)
+        : placement.state,
   };
   return {
     kind: 'text',

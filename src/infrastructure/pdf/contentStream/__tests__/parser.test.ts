@@ -228,4 +228,46 @@ describe('parseContentStream', () => {
       );
     });
   });
+
+  it('advances by glyph widths, character and word spacing', () => {
+    const fonts = {
+      F1: {
+        codeBytes: 1 as const,
+        widths: { 65: 500, 32: 250 },
+        missingWidth: 0,
+      },
+      F2: { codeBytes: 2 as const, widths: { 1: 1000 }, missingWidth: 500 },
+    };
+    const fragments = parseContentStream({
+      source: [
+        'BT /F1 10 Tf 2 Tc 3 Tw 0 0 Td (A A) Tj 0 0 1 rg (A) Tj ET',
+        'BT /F2 10 Tf 0 100 Td <00010002> Tj 0 0 1 rg (x) Tj ET',
+      ].join('\n'),
+      pageIndex: 0,
+      imageResources: {},
+      fonts,
+    });
+
+    const texts = nodeFragments(fragments).filter(
+      (fragment) => fragment.kind === 'text',
+    );
+    // 5 + 2.5 + 5 + 3 spaces of Tc (6) + one Tw (3) = 21.5
+    expect(texts[1]?.node.bounds.x).toBeCloseTo(21.5);
+    // two-byte codes: 10 + 5
+    expect(texts[3]?.node.bounds.x).toBeCloseTo(15);
+  });
+
+  it('splits the line move off a quote operator', () => {
+    const fragments = parseContentStream({
+      source: 'BT /F1 10 Tf 12 TL 0 50 Td (a) Tj 1 2 (b) " ET',
+      pageIndex: 0,
+      imageResources: {},
+    });
+
+    expect(joinFragments(fragments).replace(/\s+/g, ' ')).toContain(
+      '1 Tw 2 Tc T* (b) Tj',
+    );
+    const texts = nodeFragments(fragments);
+    expect(texts[1]?.node.bounds.y).toBeCloseTo(38);
+  });
 });
