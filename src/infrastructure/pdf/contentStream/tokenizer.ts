@@ -6,6 +6,72 @@ import {
 const WHITESPACE = new Set(['\u0000', '\t', '\n', '\f', '\r', ' ']);
 const DELIMITERS = new Set(['(', ')', '<', '>', '[', ']', '{', '}', '/', '%']);
 const INLINE_IMAGE_END = /[\0\t\n\f\r ]EI(?=[\0\t\n\f\r ()<>[\]{}/%]|$)/g;
+const INLINE_IMAGE_TAIL = /[\0\t\n\f\r ]*EI(?=[\0\t\n\f\r ()<>[\]{}/%]|$)/y;
+const COLOR_COMPONENTS: Readonly<Record<string, number>> = {
+  G: 1,
+  DeviceGray: 1,
+  CalGray: 1,
+  RGB: 3,
+  DeviceRGB: 3,
+  CalRGB: 3,
+  CMYK: 4,
+  DeviceCMYK: 4,
+};
+
+function entryValue(
+  entries: readonly PdfToken[],
+  keys: readonly string[],
+): PdfToken | undefined {
+  for (let i = 0; i + 1 < entries.length; i += 2) {
+    const key = entries[i];
+    if (key?.kind === 'name' && keys.includes(key.value)) {
+      return entries[i + 1];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Byte length of inline image data that is stored unfiltered, worked out
+ * from its dictionary (ISO 32000-1, 8.9.7), or /L where PDF 2.0 gives it.
+ * Returns null when the length cannot be known, e.g. for filtered data or a
+ * named colour space, and the caller scans for EI instead.
+ */
+function inlineImageLength(entries: readonly PdfToken[]): number | null {
+  const declared = entryValue(entries, ['L', 'Length']);
+  if (declared?.kind === 'number' && declared.value >= 0) {
+    return declared.value;
+  }
+  if (entryValue(entries, ['F', 'Filter']) !== undefined) {
+    return null;
+  }
+  const width = entryValue(entries, ['W', 'Width']);
+  const height = entryValue(entries, ['H', 'Height']);
+  if (width?.kind !== 'number' || height?.kind !== 'number') {
+    return null;
+  }
+  const mask = entryValue(entries, ['IM', 'ImageMask']);
+  const isMask = mask?.kind === 'operator' && mask.value === 'true';
+  const bpcToken = entryValue(entries, ['BPC', 'BitsPerComponent']);
+  const bpc = isMask ? 1 : bpcToken?.kind === 'number' ? bpcToken.value : null;
+  let components: number | null = isMask ? 1 : null;
+  if (!isMask) {
+    const space = entryValue(entries, ['CS', 'ColorSpace']);
+    if (space?.kind === 'name') {
+      components = COLOR_COMPONENTS[space.value] ?? null;
+    } else if (
+      space?.kind === 'array' &&
+      space.value[0]?.kind === 'name' &&
+      ['I', 'Indexed'].includes(space.value[0].value)
+    ) {
+      components = 1;
+    }
+  }
+  if (bpc === null || components === null) {
+    return null;
+  }
+  return Math.ceil((width.value * components * bpc) / 8) * height.value;
+}
 
 function isWhitespace(char: string): boolean {
   return WHITESPACE.has(char);
@@ -209,6 +275,20 @@ export function tokenizeContentStream(source: string): PdfToken[] {
         break;
       }
       entries.push(entry);
+    }
+    const dataStart = index + 1;
+    const length = inlineImageLength(entries);
+    if (length !== null) {
+      INLINE_IMAGE_TAIL.lastIndex = dataStart + length;
+      const tail = INLINE_IMAGE_TAIL.exec(source);
+      if (tail !== null) {
+        index = tail.index + tail[0].length;
+        return {
+          kind: 'inlineImage',
+          value: source.slice(start, index),
+          entries,
+        };
+      }
     }
     INLINE_IMAGE_END.lastIndex = index;
     const end = INLINE_IMAGE_END.exec(source);
