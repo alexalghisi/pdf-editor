@@ -25,6 +25,7 @@ import type {
   UpdateImageCommand,
   UpdateTextCommand,
 } from '@/domain/services/PdfAstEngine';
+import { IDENTITY } from '@/domain/valueObjects/Matrix';
 import { createPdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { parsePdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { rect, type Rect } from '@/domain/valueObjects/Rect';
@@ -150,6 +151,7 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragments.push({
       kind: 'text',
       node,
+      ctm: IDENTITY,
       raw: writeTextOperators(node),
     });
     this.commitPage(session, page, command.pageIndex);
