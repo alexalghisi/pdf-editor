@@ -14,6 +14,7 @@ export type FixturePdfOptions = {
   readonly textX?: number;
   readonly textY?: number;
   readonly fontSize?: number;
+  readonly transform?: string;
 };
 
 const PAGE_WIDTH = 612;
@@ -52,13 +53,17 @@ export function buildFixturePdf(options: FixturePdfOptions = {}): Uint8Array {
   const textY = options.textY ?? 720;
   const fontSize = options.fontSize ?? 12;
 
-  const contentOps = [
+  const textOps = [
     'BT',
     `/F1 ${fontSize} Tf`,
     `${textX} ${textY} Td`,
     `(${escapePdfLiteral(text)}) Tj`,
     'ET',
   ];
+  const contentOps =
+    options.transform === undefined
+      ? textOps
+      : ['q', `${options.transform} cm`, ...textOps, 'Q'];
 
   if (includeImage) {
     contentOps.push('q', '80 0 0 80 200 400 cm', '/Im1 Do', 'Q');
