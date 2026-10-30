@@ -1,4 +1,5 @@
 import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
+import { invert } from '@/domain/valueObjects/Matrix';
 import type { Rect } from '@/domain/valueObjects/Rect';
 import type { RgbColor } from '@/domain/valueObjects/RgbColor';
 import { escapePdfLiteral } from '@/infrastructure/pdf/contentStream/serialize';
@@ -48,7 +49,13 @@ export function rewriteTextFragment(
   return {
     kind: 'text',
     node,
-    raw: writeTextOperators(node),
+    ctm: fragment.ctm,
+    raw: [
+      'q',
+      `${invert(fragment.ctm).join(' ')} cm`,
+      writeTextOperators(node),
+      'Q',
+    ].join('\n'),
   };
 }
 

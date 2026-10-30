@@ -19,7 +19,12 @@ export type ImageResource = {
 };
 
 export type ContentFragment =
-  | { readonly kind: 'text'; readonly node: PdfTextNode; readonly raw: string }
+  | {
+      readonly kind: 'text';
+      readonly node: PdfTextNode;
+      readonly raw: string;
+      readonly ctm: Matrix;
+    }
   | {
       readonly kind: 'image';
       readonly node: PdfImageNode;
@@ -205,6 +210,7 @@ function mergeTextFragments(
     );
     merged[merged.length - 1] = {
       kind: 'text',
+      ctm: previous.ctm,
       raw: `${previous.raw}\n${fragment.raw}`,
       node: {
         ...previous.node,
@@ -323,6 +329,7 @@ export function parseContentStream(
     fragments.push({
       kind: 'text',
       node,
+      ctm: graphics.ctm,
       raw: serializeTokens(textOperatorTokens(text, graphics.fill, shown)),
     });
     textRef.value = withTmAdvance(text, advance, 0);
