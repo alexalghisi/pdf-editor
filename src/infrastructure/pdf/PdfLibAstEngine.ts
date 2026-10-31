@@ -153,7 +153,6 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragments.push({
       kind: 'text',
       node,
-      ctm: IDENTITY,
       raw: writeTextOperators(node),
       placement: null,
     });
