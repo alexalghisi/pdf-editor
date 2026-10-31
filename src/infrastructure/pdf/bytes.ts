@@ -13,6 +13,10 @@ export function decodePdfBytes(bytes: Uint8Array): string {
   return out;
 }
 
+export function encodePdfBytes(source: string): Uint8Array {
+  return Uint8Array.from(source, (char) => char.charCodeAt(0) & 0xff);
+}
+
 export function startsWithPdfHeader(bytes: Uint8Array): boolean {
   return (
     bytes.length >= 5 &&

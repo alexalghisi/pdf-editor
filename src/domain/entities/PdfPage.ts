@@ -3,6 +3,7 @@ import type { Rect } from '@/domain/valueObjects/Rect';
 
 export type PdfPage = {
   readonly index: number;
+  /** The visible page area: the CropBox clipped to the MediaBox. */
   readonly mediaBox: Rect;
   readonly nodes: readonly PdfNode[];
 };
