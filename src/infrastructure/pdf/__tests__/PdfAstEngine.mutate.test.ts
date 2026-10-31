@@ -1,3 +1,6 @@
+import { PDFDocument, PDFName, PDFRef } from 'pdf-lib';
+
+import { createPdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { BLACK, rgbColor } from '@/domain/valueObjects/RgbColor';
 import { getPage } from '@/domain/entities/PdfDocument';
 import { pageNodesOfType } from '@/domain/entities/PdfPage';
@@ -152,6 +155,40 @@ describe('PdfAstEngine.mutate', () => {
     );
   });
 
+  it('writes the rewritten content stream as an indirect object', async () => {
+    const document = await engine.load(buildFixturePdf());
+    await engine.addText(document, {
+      pageIndex: 0,
+      content: 'Indirect',
+      bounds: rect(90, 640, 80, 14),
+      fontSize: 14,
+      color: BLACK,
+    });
+
+    const saved = await PDFDocument.load(await engine.serialize(document));
+    const contents = saved.getPage(0).node.get(PDFName.of('Contents'));
+
+    expect(contents).toBeInstanceOf(PDFRef);
+  });
+
+  it('replaces the page content stream instead of piling up copies', async () => {
+    const document = await engine.load(buildFixturePdf());
+    const original = pageNodesOfType(getPage(document, 0), 'text')[0];
+    if (original === undefined) {
+      throw new Error('expected original text');
+    }
+    const countObjects = async (): Promise<number> =>
+      (
+        await PDFDocument.load(await engine.serialize(document))
+      ).context.enumerateIndirectObjects().length;
+
+    await engine.updateText(document, { nodeId: original.id, content: 'One' });
+    const afterFirstEdit = await countObjects();
+    await engine.updateText(document, { nodeId: original.id, content: 'Two' });
+
+    expect(await countObjects()).toBe(afterFirstEdit);
+  });
+
   it('preserves untouched text when another node is edited', async () => {
     const document = await engine.load(buildFixturePdf({ text: 'Keep me' }));
     await engine.addText(document, {
@@ -174,5 +211,39 @@ describe('PdfAstEngine.mutate', () => {
     expect(
       pageNodesOfType(getPage(finalDoc, 0), 'text').map((node) => node.content),
     ).toEqual(['Keep me']);
+  });
+
+  describe('rejects nodes that are not on the page', () => {
+    const missing = createPdfObjectId(0, 'text', 99);
+
+    it('when moving', async () => {
+      const document = await engine.load(buildFixturePdf());
+
+      await expect(
+        engine.moveNode(document, missing, rect(0, 0, 10, 10)),
+      ).rejects.toMatchObject({ code: 'NODE_NOT_FOUND' });
+    });
+
+    it('when deleting', async () => {
+      const document = await engine.load(buildFixturePdf());
+
+      await expect(engine.deleteNode(document, missing)).rejects.toMatchObject({
+        code: 'NODE_NOT_FOUND',
+      });
+    });
+
+    it('when editing an image as text', async () => {
+      const document = await engine.load(
+        buildFixturePdf({ includeImage: true }),
+      );
+      const image = pageNodesOfType(getPage(document, 0), 'image')[0];
+      if (image === undefined) {
+        throw new Error('expected an image node');
+      }
+
+      await expect(
+        engine.updateText(document, { nodeId: image.id, content: 'x' }),
+      ).rejects.toMatchObject({ code: 'NODE_NOT_FOUND' });
+    });
   });
 });

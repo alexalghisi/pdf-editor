@@ -26,6 +26,29 @@ describe('canvas coordinates', () => {
     expect(back.height).toBeCloseTo(original.height);
   });
 
+  it('measures from the media box origin when it is not at zero', () => {
+    const offsetMedia = rect(50, 100, 612, 792);
+
+    const screen = pdfToScreen(rect(122, 820, 100, 12), offsetMedia, 1);
+
+    expect(screen.x).toBeCloseTo(72);
+    expect(screen.y).toBeCloseTo(60);
+  });
+
+  it('round-trips through screen space when the media box is offset', () => {
+    const offsetMedia = rect(-30, 25, 400, 600);
+    const original = rect(10, 300, 80, 14);
+
+    const back = screenToPdf(
+      pdfToScreen(original, offsetMedia, 1.5),
+      offsetMedia,
+      1.5,
+    );
+
+    expect(back.x).toBeCloseTo(original.x);
+    expect(back.y).toBeCloseTo(original.y);
+  });
+
   it('moves a box by a screen drag, flipping the vertical axis', () => {
     const moved = offsetByScreenDelta(
       rect(72, 700, 100, 12),

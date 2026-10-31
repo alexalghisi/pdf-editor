@@ -9,7 +9,13 @@ export type PdfArrayToken = {
   readonly value: readonly PdfToken[];
 };
 
-export type PdfToken = PdfPrimitiveToken | PdfArrayToken;
+export type PdfInlineImageToken = {
+  readonly kind: 'inlineImage';
+  readonly value: string;
+  readonly entries: readonly PdfToken[];
+};
+
+export type PdfToken = PdfPrimitiveToken | PdfArrayToken | PdfInlineImageToken;
 
 export function isOperator(token: PdfToken, name: string): boolean {
   return token.kind === 'operator' && token.value === name;
