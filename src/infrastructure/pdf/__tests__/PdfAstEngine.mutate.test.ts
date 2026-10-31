@@ -57,6 +57,27 @@ describe('PdfAstEngine.mutate', () => {
     expect(updated?.id).toBe(original.id);
   });
 
+  it('keeps edited text where it was when the stream translates it', async () => {
+    const document = await engine.load(
+      buildFixturePdf({ transform: '1 0 0 1 50 100', textX: 22, textY: 620 }),
+    );
+    const original = pageNodesOfType(getPage(document, 0), 'text')[0];
+    if (original === undefined) {
+      throw new Error('expected original text');
+    }
+
+    await engine.updateText(document, {
+      nodeId: original.id,
+      content: 'Edited PDF',
+    });
+    const reloaded = await engine.load(await engine.serialize(document));
+    const edited = pageNodesOfType(getPage(reloaded, 0), 'text')[0];
+
+    expect(edited?.content).toBe('Edited PDF');
+    expect(edited?.bounds.x).toBeCloseTo(72, 1);
+    expect(edited?.bounds.y).toBeCloseTo(720, 1);
+  });
+
   it('deletes a text node from the content stream', async () => {
     const document = await engine.load(buildFixturePdf());
     const original = pageNodesOfType(getPage(document, 0), 'text')[0];
