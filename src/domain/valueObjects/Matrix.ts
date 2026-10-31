@@ -22,19 +22,6 @@ export function multiply(left: Matrix, right: Matrix): Matrix {
   ];
 }
 
-export function invert(matrix: Matrix): Matrix {
-  const [a, b, c, d, e, f] = matrix;
-  const det = a * d - b * c;
-  return [
-    d / det,
-    -b / det,
-    -c / det,
-    a / det,
-    (c * f - d * e) / det,
-    (b * e - a * f) / det,
-  ];
-}
-
 export function applyToPoint(
   matrix: Matrix,
   x: number,
