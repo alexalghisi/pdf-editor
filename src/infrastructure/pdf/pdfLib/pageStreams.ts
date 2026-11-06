@@ -18,6 +18,10 @@ import type {
   FontMetrics,
   ImageResource,
 } from '@/infrastructure/pdf/contentStream/parser';
+import {
+  fontCodecOf,
+  type FontCodec,
+} from '@/infrastructure/pdf/fonts/fontCodec';
 
 function decodeStream(stream: PDFStream): Uint8Array {
   if (stream instanceof PDFRawStream) {
@@ -327,6 +331,26 @@ export function readFontMetrics(page: PDFPage): Record<string, FontMetrics> {
           : simpleFontMetrics(font);
     if (metrics !== null) {
       result[key.decodeText()] = metrics;
+    }
+  }
+  return result;
+}
+
+/** How each font resource of the page maps its codes to Unicode text. */
+export function readFontCodecs(page: PDFPage): Record<string, FontCodec> {
+  const resources = page.node.Resources();
+  const fonts =
+    resources instanceof PDFDict
+      ? resources.lookup(PDFName.of('Font'))
+      : undefined;
+  if (!(fonts instanceof PDFDict)) {
+    return {};
+  }
+  const result: Record<string, FontCodec> = {};
+  for (const [key, ref] of fonts.entries()) {
+    const font = page.doc.context.lookup(ref);
+    if (font instanceof PDFDict) {
+      result[key.decodeText()] = fontCodecOf(font);
     }
   }
   return result;
