@@ -7,3 +7,4 @@ android
 ios
 dist
 web-build
+src/infrastructure/pdf/fonts/unicodeFontData.ts

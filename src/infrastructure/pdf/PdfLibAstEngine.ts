@@ -1,9 +1,12 @@
+import fontkit from '@pdf-lib/fontkit';
 import {
   PDFDocument,
   StandardFonts,
+  type PDFFont,
   type PDFImage,
   type PDFPage,
 } from 'pdf-lib';
+import { Buffer } from 'buffer';
 
 import { installBuffer } from '@/shared/installBuffer';
 
@@ -40,9 +43,14 @@ import {
   writeTextOperators,
 } from '@/infrastructure/pdf/contentStream/rewriter';
 import { startsWithPdfHeader } from '@/infrastructure/pdf/bytes';
+import type { FontMetrics } from '@/infrastructure/pdf/contentStream/parser';
+import type { EncodedText } from '@/infrastructure/pdf/contentStream/rewriter';
+import type { FontCodec } from '@/infrastructure/pdf/fonts/fontCodec';
+import { UNICODE_FONT_BASE64 } from '@/infrastructure/pdf/fonts/unicodeFontData';
 import {
   ensureFontResource,
   ensureImageResource,
+  readFontCodecs,
   readFontMetrics,
   readImageResources,
   readVisibleBox,
@@ -53,7 +61,40 @@ import {
 type EngineSession = {
   pdf: PDFDocument;
   fragmentsByPage: Map<number, ContentFragment[]>;
+  fonts: Map<string, Promise<PDFFont>>;
 };
+
+const HELVETICA_RESOURCE = 'FHelv';
+const UNICODE_RESOURCE = 'FUni';
+
+function bytesOf(font: PDFFont, text: string): string {
+  const hex = font.encodeText(text).asBytes();
+  let out = '';
+  for (const byte of hex) {
+    out += String.fromCharCode(byte);
+  }
+  return out;
+}
+
+function widthOfCodes(
+  bytes: string,
+  metrics: FontMetrics | undefined,
+  fontSize: number,
+): number | null {
+  if (metrics === undefined) {
+    return null;
+  }
+  let width = 0;
+  const step = metrics.codeBytes;
+  for (let i = 0; i + step <= bytes.length; i += step) {
+    const code =
+      step === 2
+        ? (bytes.charCodeAt(i) << 8) | bytes.charCodeAt(i + 1)
+        : bytes.charCodeAt(i);
+    width += metrics.widths[code] ?? metrics.missingWidth;
+  }
+  return (width / 1000) * fontSize;
+}
 
 function isEncryptedError(error: unknown): boolean {
   return error instanceof Error && /encrypt|password/i.test(error.message);
@@ -112,7 +153,8 @@ export class PdfLibAstEngine implements PdfAstEngine {
     pages.forEach((page, index) => {
       fragmentsByPage.set(index, this.parsePage(page, index));
     });
-    this.sessions.set(id, { pdf, fragmentsByPage });
+    pdf.registerFontkit(fontkit);
+    this.sessions.set(id, { pdf, fragmentsByPage, fonts: new Map() });
     return this.toDomain(id, pdf, fragmentsByPage);
   }
 
@@ -132,9 +174,13 @@ export class PdfLibAstEngine implements PdfAstEngine {
     getPage(document, command.pageIndex);
     const session = this.requireSession(document.id);
     const page = this.requireNativePage(session, command.pageIndex);
-    const font = await session.pdf.embedFont(StandardFonts.Helvetica);
-    const fontName = 'FHelv';
-    ensureFontResource(page, session.pdf, fontName, font.ref);
+    const { encoded, width } = await this.encodeWithEditorFont(
+      session,
+      page,
+      command.content,
+      command.fontSize,
+    );
+    const fontName = encoded.fontName;
 
     const fragments = this.pageFragments(session, command.pageIndex);
     const ordinal = fragments.filter(
@@ -144,7 +190,12 @@ export class PdfLibAstEngine implements PdfAstEngine {
       id: createPdfObjectId(command.pageIndex, 'text', ordinal),
       type: 'text',
       pageIndex: command.pageIndex,
-      bounds: command.bounds,
+      bounds: rect(
+        command.bounds.x,
+        command.bounds.y,
+        Math.max(command.bounds.width, width),
+        command.bounds.height,
+      ),
       content: command.content,
       fontName,
       fontSize: command.fontSize,
@@ -153,8 +204,9 @@ export class PdfLibAstEngine implements PdfAstEngine {
     fragments.push({
       kind: 'text',
       node,
-      raw: writeTextOperators(node),
+      raw: writeTextOperators(node, encoded),
       placement: null,
+      encoded,
     });
     this.commitPage(session, page, command.pageIndex);
     return node;
@@ -195,11 +247,32 @@ export class PdfLibAstEngine implements PdfAstEngine {
         `Text stream node ${command.nodeId} is missing`,
       );
     }
-    const next = rewriteTextFragment(current, {
-      ...(command.content !== undefined ? { content: command.content } : {}),
-      ...(command.fontSize !== undefined ? { fontSize: command.fontSize } : {}),
-      ...(command.color !== undefined ? { color: command.color } : {}),
-    });
+    const content = command.content ?? current.node.content;
+    const fontSize = command.fontSize ?? current.node.fontSize;
+    const { encoded, width } = await this.encodeForRun(
+      session,
+      page,
+      current,
+      content,
+      fontSize,
+    );
+    const next = rewriteTextFragment(
+      current,
+      {
+        ...(command.content !== undefined ? { content: command.content } : {}),
+        ...(command.fontSize !== undefined
+          ? { fontSize: command.fontSize }
+          : {}),
+        ...(command.color !== undefined ? { color: command.color } : {}),
+        bounds: rect(
+          current.node.bounds.x,
+          current.node.bounds.y,
+          width ?? current.node.bounds.width,
+          current.node.bounds.height,
+        ),
+      },
+      encoded,
+    );
     fragments[index] = next;
     this.commitPage(session, page, location.pageIndex);
     return next.node;
@@ -386,7 +459,85 @@ export class PdfLibAstEngine implements PdfAstEngine {
       pageIndex,
       imageResources: readImageResources(page),
       fonts: readFontMetrics(page),
+      codecs: readFontCodecs(page),
     });
+  }
+
+  private embedded(
+    session: EngineSession,
+    key: string,
+    load: () => Promise<PDFFont>,
+  ): Promise<PDFFont> {
+    const cached = session.fonts.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const pending = load();
+    session.fonts.set(key, pending);
+    return pending;
+  }
+
+  /**
+   * Encodes text in Helvetica when WinAnsi can show it, otherwise in the
+   * bundled Unicode font (Romanian, Greek, Cyrillic, symbols…).
+   */
+  private async encodeWithEditorFont(
+    session: EngineSession,
+    page: PDFPage,
+    content: string,
+    fontSize: number,
+  ): Promise<{ encoded: EncodedText; width: number }> {
+    const helvetica = await this.embedded(session, HELVETICA_RESOURCE, () =>
+      session.pdf.embedFont(StandardFonts.Helvetica),
+    );
+    try {
+      const bytes = bytesOf(helvetica, content);
+      ensureFontResource(page, session.pdf, HELVETICA_RESOURCE, helvetica.ref);
+      return {
+        encoded: { fontName: HELVETICA_RESOURCE, bytes },
+        width: helvetica.widthOfTextAtSize(content, fontSize),
+      };
+    } catch {
+      const unicode = await this.embedded(session, UNICODE_RESOURCE, () =>
+        session.pdf.embedFont(Buffer.from(UNICODE_FONT_BASE64, 'base64'), {
+          subset: false,
+        }),
+      );
+      ensureFontResource(page, session.pdf, UNICODE_RESOURCE, unicode.ref);
+      return {
+        encoded: {
+          fontName: UNICODE_RESOURCE,
+          bytes: bytesOf(unicode, content),
+        },
+        width: unicode.widthOfTextAtSize(content, fontSize),
+      };
+    }
+  }
+
+  /**
+   * Re-encodes edited text in the run's own font when that font has every
+   * glyph, so the edit keeps the document's typeface; otherwise switches the
+   * run to an editor font.
+   */
+  private async encodeForRun(
+    session: EngineSession,
+    page: PDFPage,
+    fragment: Extract<ContentFragment, { kind: 'text' }>,
+    content: string,
+    fontSize: number,
+  ): Promise<{ encoded: EncodedText; width: number | null }> {
+    const original = fragment.placement?.fontName;
+    if (original !== undefined) {
+      const codec: FontCodec | undefined = readFontCodecs(page)[original];
+      const bytes = codec?.encode(content) ?? null;
+      if (bytes !== null) {
+        return {
+          encoded: { fontName: original, bytes },
+          width: widthOfCodes(bytes, readFontMetrics(page)[original], fontSize),
+        };
+      }
+    }
+    return this.encodeWithEditorFont(session, page, content, fontSize);
   }
 
   private commitPage(
