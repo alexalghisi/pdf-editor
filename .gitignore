@@ -47,3 +47,4 @@ coverage/
 # pdf.js worker, copied from node_modules on install
 /public/pdf.worker.min.mjs
 .demo-site
+e2e-failure.png
