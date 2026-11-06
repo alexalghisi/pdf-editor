@@ -14,9 +14,18 @@ A professional React Native PDF editor that loads, parses, and **rewrites the PD
 | ----------------------------------------- | ---------------------------------------------------------------------- |
 | ![Editor on desktop](docs/editor-web.jpg) | <img src="docs/editor-mobile.jpg" alt="Editor on a phone" width="260"> |
 
-![Moving a heading and typing a new line on a page printed from Chrome](docs/editor-demo.gif)
+## Edit the text of any PDF like a document
 
-The page preview is the real PDF, re-rendered after each edit. Here a blank letter page has two text blocks and an image. They were inserted, typed and dragged in place, and the result exports as a regular PDF.
+![Editing the text of a real PDF: overwriting a line, replacing one word, fixing prices](docs/editor-demo.gif)
+
+The GIF is the live web app on a real PDF printed from Chrome ([sample-service-agreement.pdf](docs/sample-service-agreement.pdf) — open it in the app and try it):
+
+1. **Click a line** to select it, **click it again** to edit. It opens with the whole line selected, so typing overwrites it.
+2. Inside the line it behaves like a text field in a document: click or use the arrow keys to place the caret, **Shift+arrows / double-click / drag** to select a word, **Backspace/Delete**, **Ctrl/Cmd+A**, copy and paste.
+3. **Enter** (or clicking elsewhere) writes the new text into the PDF; **Esc** cancels.
+4. **Save as…** PDF, Word, HTML, CSV or text.
+
+The page you see is the real PDF, re-rendered by pdf.js after each edit — the text is rewritten in the page content stream, not painted over with an annotation. On a phone it works the same way with taps and the on-screen keyboard.
 
 The project is built with TDD, Clean Architecture, and strict TypeScript. Page rasterization runs in a JSI/Expo native module (PDFKit on iOS, `PdfRenderer` on Android) so large documents never block the JS thread.
 
@@ -99,7 +108,7 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 
 ![Save as menu](docs/save-as.jpg)
 
-- Interactive canvas: tap to select, drag to move, tap a selected text again to edit it, pinch or `−`/`+` to zoom.
+- Interactive canvas: tap to select, drag to move, tap a selected text again to edit it in place (Enter saves, Esc cancels), pinch or `−`/`+` to zoom.
 - Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
 
 ### Known limitations
@@ -152,13 +161,16 @@ site through the `Deploy web app` workflow.
 
 ### Scripts
 
-| Command                 | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `npm test`              | Jest + Testing Library (TDD suite)                  |
-| `npm run test:coverage` | Coverage with thresholds                            |
-| `npm run typecheck`     | `tsc --noEmit`, strict + `noUncheckedIndexedAccess` |
-| `npx expo start`        | Metro bundler                                       |
-| `npm run build:web`     | Static web export to `./dist`                       |
+| Command                                  | Purpose                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                               | Jest + Testing Library (TDD suite)                                                                                              |
+| `npm run test:coverage`                  | Coverage with thresholds                                                                                                        |
+| `npm run typecheck`                      | `tsc --noEmit`, strict + `noUncheckedIndexedAccess`                                                                             |
+| `npx expo start`                         | Metro bundler                                                                                                                   |
+| `npm run build:web`                      | Static web export to `./dist`                                                                                                   |
+| `npm run e2e`                            | Edits the sample PDF in the built app with Chrome (desktop + phone viewport) and checks the saved PDF, Word and CSV; runs in CI |
+| `python3 scripts/record-demo.py`         | Re-records `docs/editor-demo.gif` from the built app                                                                            |
+| `python3 scripts/capture-screenshots.py` | Re-captures the desktop and phone screenshots                                                                                   |
 
 ## TDD map
 
