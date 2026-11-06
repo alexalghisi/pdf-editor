@@ -1,13 +1,15 @@
 import { Buffer } from 'buffer';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { formatInfo, type ExportFormat } from '@/application/export/exporters';
 import { getPage } from '@/domain/entities/PdfDocument';
 import { PdfCanvas } from '@/presentation/canvas/PdfCanvas';
+import { SaveAsSheet } from '@/presentation/components/SaveAsSheet';
 import { ToolbarButton } from '@/presentation/components/ToolbarButton';
 import { useEditorStore } from '@/presentation/store/editorStore';
 import { colors, spacing, typography } from '@/presentation/theme';
@@ -24,7 +26,8 @@ export function EditorScreen() {
   const addText = useEditorStore((state) => state.addText);
   const addImage = useEditorStore((state) => state.addImage);
   const deleteSelected = useEditorStore((state) => state.deleteSelected);
-  const save = useEditorStore((state) => state.save);
+  const saveAs = useEditorStore((state) => state.saveAs);
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const setPage = useEditorStore((state) => state.setPage);
   const setZoom = useEditorStore((state) => state.setZoom);
   const zoom = useEditorStore((state) => state.zoom);
@@ -73,13 +76,19 @@ export function EditorScreen() {
     await addImage(bytes, mimeType);
   };
 
-  const exportPdf = async (): Promise<void> => {
-    const uri = await save();
+  const exportAs = async (format: ExportFormat): Promise<void> => {
+    setSaveMenuOpen(false);
+    const uri = await saveAs(format);
     if (uri === null || Platform.OS === 'web') {
       return;
     }
+    const info = formatInfo(format);
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+      await Sharing.shareAsync(uri, {
+        mimeType: info.mimeType,
+        UTI: info.uti,
+        dialogTitle: 'Save as',
+      });
     } else {
       Alert.alert('Saved', `Wrote ${uri}`);
     }
@@ -97,12 +106,7 @@ export function EditorScreen() {
             Page {currentPageIndex + 1} / {document.pageCount} · {status}
           </Text>
         </View>
-        <ToolbarButton
-          label="Save"
-          onPress={() => {
-            void exportPdf();
-          }}
-        />
+        <ToolbarButton label="Save as…" onPress={() => setSaveMenuOpen(true)} />
       </View>
 
       {errorMessage !== null ? (
@@ -112,6 +116,14 @@ export function EditorScreen() {
       ) : null}
 
       <PdfCanvas page={page} rasterUri={rasterUri} />
+
+      <SaveAsSheet
+        visible={saveMenuOpen}
+        onClose={() => setSaveMenuOpen(false)}
+        onPick={(format) => {
+          void exportAs(format);
+        }}
+      />
 
       <View style={styles.bottomBar}>
         <ToolbarButton

@@ -20,10 +20,14 @@ export class WebFileSystemAdapter implements FileSystemPort {
     }
   }
 
-  async writeBinary(uri: string, bytes: Uint8Array): Promise<void> {
+  async writeBinary(
+    uri: string,
+    bytes: Uint8Array,
+    mimeType = 'application/pdf',
+  ): Promise<void> {
     const view = new Uint8Array(bytes.byteLength);
     view.set(bytes);
-    const blob = new Blob([view.buffer], { type: 'application/pdf' });
+    const blob = new Blob([view.buffer], { type: mimeType });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = objectUrl;
@@ -31,7 +35,8 @@ export class WebFileSystemAdapter implements FileSystemPort {
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(objectUrl);
+    // Safari starts the download asynchronously; revoking at once cancels it.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
   }
 
   cachePath(fileName: string): string {
