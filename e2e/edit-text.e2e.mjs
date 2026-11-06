@@ -34,11 +34,37 @@ async function editLine(page, current, apply) {
   const input = page.getByLabel('Edit text');
   await input.waitFor();
   assert.equal(await input.inputValue(), current, 'editor opens with the line');
+  // The editor opens with the line selected (select-on-focus); wait for it,
+  // as a user sees it, before typing or moving the caret.
+  await input.evaluate(
+    (element) =>
+      new Promise((done) => {
+        const check = () =>
+          element.selectionStart === 0 &&
+          element.selectionEnd === element.value.length
+            ? done()
+            : requestAnimationFrame(check);
+        check();
+      }),
+  );
   await apply(input);
 }
 
 async function waitForText(page, text) {
-  await page.getByText(text, { exact: true }).waitFor({ timeout: 15000 });
+  try {
+    await page.getByText(text, { exact: true }).waitFor({ timeout: 15000 });
+  } catch (error) {
+    // Say what the page shows instead, and keep a screenshot for CI.
+    const words = text.split(' ').slice(0, 2).join(' ');
+    const shown = await page.getByText(words).allInnerTexts();
+    const field = page.getByLabel('Edit text');
+    const editing = (await field.count()) > 0 ? await field.inputValue() : null;
+    await page.screenshot({ path: join(ROOT, 'e2e-failure.png') });
+    throw new Error(
+      `Expected "${text}". Page shows ${JSON.stringify(shown)}; editor ${JSON.stringify(editing)}`,
+      { cause: error },
+    );
+  }
 }
 
 async function saveAs(page, label, folder) {
@@ -78,6 +104,12 @@ async function main() {
         hasTouch: viewport.name === 'phone',
       });
       const page = await context.newPage();
+      // E2E_CPU_THROTTLE=6 emulates a slow CI runner.
+      const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+      if (throttle > 1) {
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+      }
       page.on('pageerror', (error) =>
         errors.push(`${viewport.name}: ${error}`),
       );
