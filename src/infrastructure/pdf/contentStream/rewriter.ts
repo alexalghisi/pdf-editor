@@ -35,19 +35,25 @@ function sameColor(left: RgbColor, right: RgbColor): boolean {
   return left.r === right.r && left.g === right.g && left.b === right.b;
 }
 
-export function writeTextOperators(input: {
-  readonly content: string;
-  readonly fontName: string;
-  readonly fontSize: number;
-  readonly color: RgbColor;
-  readonly bounds: Rect;
-}): string {
+export function writeTextOperators(
+  input: {
+    readonly content: string;
+    readonly fontName: string;
+    readonly fontSize: number;
+    readonly color: RgbColor;
+    readonly bounds: Rect;
+  },
+  encoded?: EncodedText,
+): string {
+  const fontName = encoded?.fontName ?? input.fontName;
   return [
     'BT',
-    `/${input.fontName} ${formatPdfNumber(input.fontSize)} Tf`,
+    `${serializeToken({ kind: 'name', value: fontName })} ${formatPdfNumber(input.fontSize)} Tf`,
     fillColor(input.color),
     `${numbers([input.bounds.x, input.bounds.y])} Td`,
-    `(${escapePdfLiteral(input.content)}) Tj`,
+    encoded === undefined
+      ? `(${escapePdfLiteral(input.content)}) Tj`
+      : `${serializeToken({ kind: 'string', value: encoded.bytes })} Tj`,
     'ET',
   ].join('\n');
 }
@@ -64,16 +70,31 @@ export function writeImageOperators(
   ].join('\n');
 }
 
-function inlineShow(node: PdfTextNode, placement: TextPlacement): string {
-  const font = serializeToken({ kind: 'name', value: node.fontName });
+/** Text already encoded for a font resource: the bytes of its codes. */
+export type EncodedText = {
+  readonly fontName: string;
+  readonly bytes: string;
+};
+
+function inlineShow(
+  node: PdfTextNode,
+  placement: TextPlacement,
+  encoded: EncodedText | undefined,
+): string {
+  const original = placement.fontName ?? node.fontName;
+  const fontName = encoded?.fontName ?? node.fontName;
+  const font = serializeToken({ kind: 'name', value: fontName });
   const localSize = node.fontSize * placement.fontScale;
   const resized = Math.abs(localSize - placement.fontSize) > 1e-6;
+  const switched = fontName !== original;
   const recolored = !sameColor(node.color, placement.color);
   return [
     recolored ? fillColor(node.color) : '',
-    resized ? `${font} ${formatPdfNumber(localSize)} Tf` : '',
-    `${serializeToken({ kind: 'string', value: node.content })} Tj`,
-    resized ? `${font} ${formatPdfNumber(placement.fontSize)} Tf` : '',
+    resized || switched ? `${font} ${formatPdfNumber(localSize)} Tf` : '',
+    `${serializeToken({ kind: 'string', value: encoded?.bytes ?? node.content })} Tj`,
+    resized || switched
+      ? `${serializeToken({ kind: 'name', value: original })} ${formatPdfNumber(placement.fontSize)} Tf`
+      : '',
     recolored ? fillColor(placement.color) : '',
   ]
     .filter((part) => part.length > 0)
@@ -167,11 +188,27 @@ export function rewriteTextFragment(
   patch: Partial<
     Pick<PdfTextNode, 'content' | 'fontSize' | 'color' | 'bounds'>
   >,
+  nextEncoding?: EncodedText,
 ): TextFragment {
-  const node: PdfTextNode = { ...fragment.node, ...patch };
+  const retyped =
+    patch.content !== undefined ||
+    patch.fontSize !== undefined ||
+    patch.color !== undefined;
+  const encoded = nextEncoding ?? (retyped ? undefined : fragment.encoded);
+  const node: PdfTextNode = {
+    ...fragment.node,
+    ...patch,
+    ...(encoded !== undefined ? { fontName: encoded.fontName } : {}),
+  };
   const { placement } = fragment;
   if (placement === null) {
-    return { kind: 'text', node, raw: writeTextOperators(node), placement };
+    return {
+      kind: 'text',
+      node,
+      raw: writeTextOperators(node, encoded),
+      placement,
+      ...(encoded !== undefined ? { encoded } : {}),
+    };
   }
   const restyled =
     patch.content !== undefined ||
@@ -185,7 +222,7 @@ export function rewriteTextFragment(
       node.bounds.x - fragment.node.bounds.x,
       node.bounds.y - fragment.node.bounds.y,
     ),
-    body: restyled ? inlineShow(node, placement) : placement.body,
+    body: restyled ? inlineShow(node, placement, encoded) : placement.body,
     state:
       restyled && placement.state === null
         ? textStateOperators(placement.body)
@@ -196,6 +233,7 @@ export function rewriteTextFragment(
     node,
     raw: positionedRun(next.textMatrix, next),
     placement: next,
+    ...(encoded !== undefined ? { encoded } : {}),
   };
 }
 

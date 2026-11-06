@@ -100,7 +100,10 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 
 ### Known limitations
 
-- Existing text in fonts with a two-byte encoding (`Identity-H`, the usual output of browsers and office suites) is extracted as glyph ids. You can move or delete it, but in-place text edits are only reliable for simple-encoded and newly added text.
+- Fonts are swapped, not synthesized: retyped text that the original subset font cannot show is drawn in Liberation Sans (metric-compatible with Arial/Helvetica).
+
+- Existing text is read through each font's `ToUnicode` CMap, `Encoding` and `Differences`, so PDFs from Chrome, Word, LibreOffice and LaTeX show and edit as real text (including `Identity-H` two-byte fonts). An edit keeps the document's own font when that font has every glyph; otherwise the run switches to a bundled Unicode font (Liberation Sans, SIL OFL), so Romanian (ș ț ă î â), Greek, Cyrillic and symbols always render.
+- Composite fonts that ship no `ToUnicode` map carry glyph ids only; their text can be moved or deleted, and retyping it writes the new text in the Unicode font.
 - Text drawn inside form XObjects is rendered but not yet exposed as editable nodes.
 
 ## Setup

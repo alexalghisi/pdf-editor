@@ -12,6 +12,7 @@ import { BLACK, rgbColor, type RgbColor } from '@/domain/valueObjects/RgbColor';
 import { serializeTokens } from '@/infrastructure/pdf/contentStream/serialize';
 import { tokenizeContentStream } from '@/infrastructure/pdf/contentStream/tokenizer';
 import type { PdfToken } from '@/infrastructure/pdf/contentStream/tokens';
+import type { FontCodec } from '@/infrastructure/pdf/fonts/fontCodec';
 
 export type ImageResource = {
   readonly width: number;
@@ -26,6 +27,8 @@ export type FontMetrics = {
 };
 
 export type TextPlacement = {
+  /** Font resource the original run was shown in. */
+  readonly fontName: string;
   readonly ctm: Matrix;
   readonly textMatrix: Matrix;
   readonly lineMatrix: Matrix;
@@ -53,6 +56,8 @@ export type ContentFragment =
       readonly node: PdfTextNode;
       readonly raw: string;
       readonly placement: TextPlacement | null;
+      /** Codes of a run this editor wrote, kept so moving it keeps them. */
+      readonly encoded?: { readonly fontName: string; readonly bytes: string };
     }
   | {
       readonly kind: 'image';
@@ -67,6 +72,7 @@ export type ParseContentStreamInput = {
   readonly pageIndex: number;
   readonly imageResources: Readonly<Record<string, ImageResource>>;
   readonly fonts?: Readonly<Record<string, FontMetrics>>;
+  readonly codecs?: Readonly<Record<string, FontCodec>>;
 };
 
 type GraphicsState = {
@@ -320,10 +326,18 @@ function inlineImageSize(entries: readonly PdfToken[]): ImageResource | null {
   return width === null || height === null ? null : { width, height };
 }
 
+/** A TJ offset this wide (thousandths of an em) separates two words. */
+const WORD_GAP = 200;
+
+function decodeRaw(raw: string, codec: FontCodec | undefined): string {
+  return codec === undefined ? decodeShownText(raw) : codec.decode(raw);
+}
+
 function tjAdvance(
   token: PdfToken | undefined,
   state: TextState,
   metrics: FontMetrics | undefined,
+  codec: FontCodec | undefined,
 ): { content: string; advance: number } {
   if (token?.kind !== 'array') {
     return { content: '', advance: 0 };
@@ -332,15 +346,30 @@ function tjAdvance(
   let advance = 0;
   for (const item of token.value) {
     if (item.kind === 'string') {
-      content += decodeShownText(item.value);
+      content += decodeRaw(item.value, codec);
       advance += measureString(item.value, state, metrics);
       continue;
     }
     if (item.kind === 'number') {
       advance += (-item.value / 1000) * state.fontSize * state.horizScale;
+      if (
+        -item.value >= WORD_GAP &&
+        content.length > 0 &&
+        !/\s$/.test(content)
+      ) {
+        content += ' ';
+      }
     }
   }
-  return { content, advance };
+  return {
+    content: content.replace(/\s+$/, (gap) => gap.slice(0, 1)),
+    advance,
+  };
+}
+
+function advanceWidth(ctm: Matrix, state: TextState, advance: number): number {
+  const user = multiply(ctm, state.textMatrix);
+  return Math.abs(advance) * Math.hypot(user[0], user[1]);
 }
 
 const SAVE_STATE: ContentFragment = { kind: 'passthrough', raw: 'q' };
@@ -400,6 +429,9 @@ export function parseContentStream(
   const fontOf = (text: TextState): FontMetrics | undefined =>
     input.fonts?.[text.fontName];
 
+  const codecOf = (text: TextState): FontCodec | undefined =>
+    input.codecs?.[text.fontName];
+
   const emitText = (
     showTokens: readonly PdfToken[],
     content: string,
@@ -426,6 +458,10 @@ export function parseContentStream(
       0,
       text.rise,
     );
+    const measured =
+      fontOf(text) === undefined
+        ? 0
+        : advanceWidth(graphics.ctm, text, advance);
     const node: PdfTextNode = {
       id: createPdfObjectId(input.pageIndex, 'text', fragments.length),
       type: 'text',
@@ -433,7 +469,7 @@ export function parseContentStream(
       bounds: rect(
         pagePoint.x,
         pagePoint.y,
-        Math.max(estimateTextWidth(shown, size), 1),
+        Math.max(measured > 0 ? measured : estimateTextWidth(shown, size), 1),
         size,
       ),
       content: shown,
@@ -471,6 +507,7 @@ export function parseContentStream(
         node,
         raw: show,
         placement: {
+          fontName: text.fontName,
           ctm: graphics.ctm,
           textMatrix: text.textMatrix,
           lineMatrix: text.textLineMatrix,
@@ -487,13 +524,11 @@ export function parseContentStream(
     textRef.value = after;
   };
 
-  const showString = (
-    showTokens: readonly PdfToken[],
-    content: string,
-  ): void => {
+  const showString = (showTokens: readonly PdfToken[], raw: string): void => {
     const text = textRef.value;
-    const advance =
-      text === null ? 0 : measureString(content, text, fontOf(text));
+    const advance = text === null ? 0 : measureString(raw, text, fontOf(text));
+    const content =
+      text === null ? decodeShownText(raw) : decodeRaw(raw, codecOf(text));
     emitText(showTokens, content, advance);
   };
 
@@ -602,7 +637,7 @@ export function parseContentStream(
         continue;
       }
       if (op === 'TJ') {
-        const shown = tjAdvance(operands[0], text, fontOf(text));
+        const shown = tjAdvance(operands[0], text, fontOf(text), codecOf(text));
         emitText([...operands, token], shown.content, shown.advance);
         operands.length = 0;
         continue;
