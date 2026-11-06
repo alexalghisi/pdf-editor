@@ -95,6 +95,10 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Preserve vector art as passthrough operator groups.
 - Untouched operators are written back as they were, so a page that is only partly edited keeps the rest of its content operator for operator — including pages drawn under a flipped or scaled CTM, as browsers and office suites produce them.
 - Lossless save that restores title, author, creator, and producer.
+- **Save as** PDF, Word (`.docx`), web page (`.html`, every line at its PDF position), spreadsheet (`.csv`, table cells become columns, UTF-8 with BOM for Excel) or plain text. On the web the file downloads; on iOS/Android it opens the share sheet.
+
+![Save as menu](docs/save-as.jpg)
+
 - Interactive canvas: tap to select, drag to move, tap a selected text again to edit it, pinch or `−`/`+` to zoom.
 - Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
 

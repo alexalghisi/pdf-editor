@@ -11,6 +11,12 @@ import type {
 import type { PdfObjectId } from '@/domain/valueObjects/PdfObjectId';
 import { rect, type Rect } from '@/domain/valueObjects/Rect';
 import { BLACK, type RgbColor } from '@/domain/valueObjects/RgbColor';
+import {
+  exportDocument,
+  formatInfo,
+  withExtension,
+  type ExportFormat,
+} from '@/application/export/exporters';
 import { getAppContainer } from '@/infrastructure/di/container';
 import { createBlankPdfDocument } from '@/infrastructure/pdf/PdfLibAstEngine';
 
@@ -30,6 +36,8 @@ export type EditorState = {
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
+  /** Writes the document as PDF, Word, HTML, CSV or text; returns the file URI. */
+  saveAs: (format: ExportFormat) => Promise<string | null>;
   addText: (
     content: string,
     bounds?: Rect,
@@ -183,6 +191,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     set({ status: 'idle', fileUri: destination, errorMessage: null });
     return destination;
+  },
+
+  async saveAs(format) {
+    if (format === 'pdf') {
+      return get().save();
+    }
+    const { document, fileName } = get();
+    if (document === null) {
+      return null;
+    }
+    const { fileSystem } = getAppContainer();
+    const info = formatInfo(format);
+    const target = withExtension(fileName, info.extension);
+    const destination = fileSystem.cachePath(target);
+    set({ status: 'saving' });
+    try {
+      const bytes = exportDocument(
+        document,
+        format,
+        document.metadata.title ?? withExtension(fileName, '').slice(0, -1),
+      );
+      await fileSystem.writeBinary(destination, bytes, info.mimeType);
+      set({ status: 'idle', errorMessage: null });
+      return destination;
+    } catch (error) {
+      set({
+        status: 'error',
+        errorMessage:
+          error instanceof Error ? error.message : `Could not save ${target}`,
+      });
+      return null;
+    }
   },
 
   async addText(content, bounds, fontSize = 16, color = BLACK) {
