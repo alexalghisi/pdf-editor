@@ -98,6 +98,9 @@ async def edit(rec, text):
     await line.click()
     field = rec.page.get_by_label("Edit text")
     await field.wait_for()
+    await field.evaluate(
+        "el => new Promise(done => { const check = () => el.selectionStart === 0 && el.selectionEnd === el.value.length ? done() : requestAnimationFrame(check); check(); })"
+    )
     await rec.shot(800)
     return field
 

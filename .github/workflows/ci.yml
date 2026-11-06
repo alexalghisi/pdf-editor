@@ -40,3 +40,11 @@ jobs:
       # saves it as PDF, Word and CSV, on a desktop and a phone viewport.
       - name: End-to-end text editing
         run: CHROME_PATH="$(which google-chrome)" npm run e2e
+
+      - name: Upload e2e failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: e2e-failure.png
+          if-no-files-found: ignore
