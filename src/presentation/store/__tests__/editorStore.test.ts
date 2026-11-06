@@ -19,6 +19,7 @@ const mockMutateDeleteNode = jest.fn();
 const mockMutateMoveNode = jest.fn();
 const mockCreateBlank = jest.fn();
 const mockRenderPage = jest.fn();
+const mockWriteBinary = jest.fn();
 
 jest.mock('@/infrastructure/di/container', () => {
   const actual = jest.requireActual<
@@ -30,7 +31,7 @@ jest.mock('@/infrastructure/di/container', () => {
       engine: { disposeAll: jest.fn() },
       fileSystem: {
         cachePath: mockCachePath,
-        writeBinary: jest.fn(),
+        writeBinary: mockWriteBinary,
         readBinary: jest.fn(),
       },
       renderer: { renderPage: jest.fn() },
@@ -192,6 +193,52 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().status).toBe('error');
       expect(useEditorStore.getState().errorMessage).toBe('cannot parse');
+    });
+  });
+
+  describe('saveAs', () => {
+    it('writes a Word file next to the document name with its MIME type', async () => {
+      withDocument(documentStub([textNode(0)]));
+      useEditorStore.setState({ fileName: 'report.pdf' });
+
+      const destination = await useEditorStore.getState().saveAs('docx');
+
+      expect(destination).toBe('file://cache/report.docx');
+      expect(mockWriteBinary).toHaveBeenCalledWith(
+        'file://cache/report.docx',
+        expect.any(Uint8Array),
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
+      expect(useEditorStore.getState().status).toBe('idle');
+    });
+
+    it('exports text formats as UTF-8', async () => {
+      withDocument(documentStub([textNode(0)]));
+      useEditorStore.setState({ fileName: 'notes.pdf' });
+
+      await useEditorStore.getState().saveAs('txt');
+      const bytes = mockWriteBinary.mock.calls[0]?.[1] as Uint8Array;
+
+      expect(new TextDecoder().decode(bytes)).toBe('Hello');
+    });
+
+    it('routes PDF through the regular save', async () => {
+      withDocument(documentStub());
+      useEditorStore.setState({ fileName: 'report.pdf' });
+      mockSaveExecute.mockResolvedValue(ok(undefined));
+
+      await expect(useEditorStore.getState().saveAs('pdf')).resolves.toBe(
+        'file://cache/report.pdf',
+      );
+      expect(mockWriteBinary).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed write', async () => {
+      withDocument(documentStub([textNode(0)]));
+      mockWriteBinary.mockRejectedValueOnce(new Error('disk full'));
+
+      await expect(useEditorStore.getState().saveAs('csv')).resolves.toBeNull();
+      expect(useEditorStore.getState().errorMessage).toBe('disk full');
     });
   });
 
