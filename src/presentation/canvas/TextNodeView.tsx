@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type NativeSyntheticEvent,
+  type TextStyle,
+  type TextInputKeyPressEventData,
+} from 'react-native';
 
 import type { PdfTextNode } from '@/domain/entities/PdfTextNode';
 import type { Rect } from '@/domain/valueObjects/Rect';
@@ -9,6 +19,33 @@ import {
 } from '@/presentation/canvas/coordinates';
 import { useNodeDrag } from '@/presentation/canvas/useNodeDrag';
 import { colors } from '@/presentation/theme';
+
+/** Close to the sans faces PDFs use, so the edit box looks like the page. */
+const EDIT_FONT = Platform.select({
+  ios: 'Helvetica',
+  android: 'sans-serif',
+  default: 'Arial, Helvetica, "Liberation Sans", sans-serif',
+});
+
+/**
+ * Width of the edit box for a draft: the run's own width scaled by how much
+ * longer the draft is, plus room for the caret, so text never scrolls out of
+ * view while typing.
+ */
+export function editorWidth(
+  runWidth: number,
+  original: string,
+  draft: string,
+  fontSize: number,
+): number {
+  const perChar =
+    original.length > 0 ? runWidth / original.length : fontSize * 0.55;
+  return Math.max(runWidth, perChar * draft.length) + fontSize;
+}
+
+function cssColor(color: PdfTextNode['color']): string {
+  return `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+}
 
 type Props = {
   readonly node: PdfTextNode;
@@ -45,6 +82,27 @@ export function TextNodeView({
     setEditing(true);
   };
 
+  const finishEditing = (commit: boolean): void => {
+    if (!editing) {
+      return;
+    }
+    setEditing(false);
+    if (commit && draft.trim().length > 0 && draft !== node.content) {
+      onCommitText(draft);
+    }
+  };
+
+  const onKeyPress = (
+    event: NativeSyntheticEvent<TextInputKeyPressEventData>,
+  ): void => {
+    if (event.nativeEvent.key === 'Escape') {
+      setDraft(node.content);
+      finishEditing(false);
+    }
+  };
+
+  const fontSize = node.fontSize * scale;
+
   return (
     <View
       {...panHandlers}
@@ -67,13 +125,20 @@ export function TextNodeView({
           accessibilityLabel="Edit text"
           value={draft}
           onChangeText={setDraft}
-          onBlur={() => {
-            setEditing(false);
-            if (draft.trim().length > 0 && draft !== node.content) {
-              onCommitText(draft);
-            }
-          }}
-          style={[styles.input, { fontSize: node.fontSize * scale }]}
+          onKeyPress={onKeyPress}
+          onSubmitEditing={() => finishEditing(true)}
+          onBlur={() => finishEditing(true)}
+          returnKeyType="done"
+          blurOnSubmit
+          style={[
+            styles.input,
+            {
+              fontSize,
+              lineHeight: fontSize * 1.2,
+              color: cssColor(node.color),
+              width: editorWidth(screen.width, node.content, draft, fontSize),
+            },
+          ]}
         />
       ) : (
         <Pressable
@@ -93,10 +158,9 @@ export function TextNodeView({
           <Text
             style={{
               color:
-                showContent || dragging
-                  ? `rgb(${Math.round(node.color.r * 255)}, ${Math.round(node.color.g * 255)}, ${Math.round(node.color.b * 255)})`
-                  : 'transparent',
-              fontSize: node.fontSize * scale,
+                showContent || dragging ? cssColor(node.color) : 'transparent',
+              fontSize,
+              fontFamily: EDIT_FONT,
             }}
           >
             {node.content}
@@ -118,11 +182,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(201, 162, 39, 0.08)',
   },
   editing: {
-    backgroundColor: colors.paper,
+    // Covers the rendered glyphs while typing; PDF pages are white.
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   input: {
-    color: colors.textInverse,
+    fontFamily: EDIT_FONT,
     padding: 0,
     margin: 0,
+    borderWidth: 0,
+    // react-native-web passes outlineStyle through; the native types omit
+    // 'none'. Without it browsers draw their focus ring over the page.
+    ...(Platform.OS === 'web'
+      ? ({ outlineStyle: 'none' } as unknown as TextStyle)
+      : {}),
   },
 });
