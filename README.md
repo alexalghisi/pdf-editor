@@ -10,6 +10,8 @@
 
 A professional React Native PDF editor that loads, parses, and **rewrites the PDF content stream**. Text and images are first-class nodes in the document AST. Mutations are not flattened annotations.
 
+![Start screen](docs/home.jpg)
+
 | Desktop browser                           | Phone browser                                                          |
 | ----------------------------------------- | ---------------------------------------------------------------------- |
 | ![Editor on desktop](docs/editor-web.jpg) | <img src="docs/editor-mobile.jpg" alt="Editor on a phone" width="260"> |
@@ -24,6 +26,8 @@ The GIF is the live web app on a real PDF printed from Chrome ([sample-service-a
 2. Inside the line it behaves like a text field in a document: click or use the arrow keys to place the caret, **Shift+arrows / double-click / drag** to select a word, **Backspace/Delete**, **Ctrl/Cmd+A**, copy and paste.
 3. **Enter** (or clicking elsewhere) writes the new text into the PDF; **Esc** cancels.
 4. **Save as…** PDF, Word, HTML, CSV or text.
+
+To open a file, press **Open PDF** or drag it anywhere onto the start screen.
 
 The page you see is the real PDF, re-rendered by pdf.js after each edit — the text is rewritten in the page content stream, not painted over with an annotation. On a phone it works the same way with taps and the on-screen keyboard.
 
@@ -108,7 +112,7 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 
 ![Save as menu](docs/save-as.jpg)
 
-- Interactive canvas: tap to select, drag to move, tap a selected text again to edit it in place (Enter saves, Esc cancels), pinch or `−`/`+` to zoom.
+- Interactive canvas: tap to select, drag to move, tap a selected text again to edit it in place (Enter saves, Esc cancels), pinch or `−`/`+` to zoom, click the percentage to reset it.
 - Live page preview of the edited document: pdf.js on web, `PdfNativeEngine` in a dev client / release build.
 
 ### Known limitations
@@ -118,6 +122,18 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Existing text is read through each font's `ToUnicode` CMap, `Encoding` and `Differences`, so PDFs from Chrome, Word, LibreOffice and LaTeX show and edit as real text (including `Identity-H` two-byte fonts). An edit keeps the document's own font when that font has every glyph; otherwise the run switches to a bundled Unicode font (Liberation Sans, SIL OFL), so Romanian (ș ț ă î â), Greek, Cyrillic and symbols always render.
 - Composite fonts that ship no `ToUnicode` map carry glyph ids only; their text can be moved or deleted, and retyping it writes the new text in the Unicode font.
 - Text drawn inside form XObjects is rendered but not yet exposed as editable nodes.
+
+## Tests
+
+| Command             | What it checks                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`          | Unit and component tests: domain, PDF engine, store, screens and controls.                                                                           |
+| `npm run e2e`       | The built web app in Chrome: text editing and export, toolbar, page navigation, drag and drop, broken files, and layout from 320 px to 1920 px wide. |
+| `npm run typecheck` | Strict TypeScript.                                                                                                                                   |
+
+Run `npm run build:web` before `npm run e2e`. The layout suite writes a screenshot of every screen and size to `e2e-screenshots/`.
+
+Planned work and the history of changes are in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
 
 ## Setup
 

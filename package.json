@@ -16,7 +16,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "typecheck": "tsc --noEmit",
-    "e2e": "node e2e/edit-text.e2e.mjs"
+    "e2e": "node e2e/run.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
@@ -27,8 +27,10 @@
     "babel-preset-expo": "~57.0.0",
     "buffer": "^6.0.3",
     "expo": "~57.0.21",
+    "expo-asset": "~57.0.22",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.6",
+    "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.16",
     "expo-sharing": "~57.0.18",
     "expo-status-bar": "~57.0.1",

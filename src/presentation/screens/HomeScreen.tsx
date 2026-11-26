@@ -1,12 +1,44 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  ToolbarButton,
+  type IconName,
+} from '@/presentation/components/ToolbarButton';
+import { useFileDrop } from '@/presentation/hooks/useFileDrop';
 import type { RootStackParamList } from '@/presentation/navigation/types';
 import { useEditorStore } from '@/presentation/store/editorStore';
-import { colors, radius, spacing, typography } from '@/presentation/theme';
+import {
+  colors,
+  layout,
+  radius,
+  spacing,
+  typography,
+} from '@/presentation/theme';
+import { useCompact } from '@/presentation/theme/responsive';
+
+const features: readonly { icon: IconName; title: string; text: string }[] = [
+  {
+    icon: 'edit-3',
+    title: 'Edit the real text',
+    text: 'Click a line, type, press Enter. The page itself is rewritten.',
+  },
+  {
+    icon: 'lock',
+    title: 'Private by design',
+    text: 'Your file is processed on this device and never uploaded.',
+  },
+  {
+    icon: 'download',
+    title: 'Save in five formats',
+    text: 'PDF, Word, web page, spreadsheet or plain text.',
+  },
+];
 
 export function HomeScreen() {
   const navigation =
@@ -15,6 +47,26 @@ export function HomeScreen() {
   const createBlank = useEditorStore((state) => state.createBlank);
   const status = useEditorStore((state) => state.status);
   const errorMessage = useEditorStore((state) => state.errorMessage);
+  const compact = useCompact();
+  const loading = status === 'loading';
+
+  const enterEditor = useCallback((): void => {
+    if (useEditorStore.getState().status !== 'error') {
+      navigation.navigate('Editor');
+    }
+  }, [navigation]);
+
+  const openDocument = useCallback(
+    async (uri: string, fileName: string): Promise<void> => {
+      await openFromUri(uri, fileName);
+      enterEditor();
+    },
+    [openFromUri, enterEditor],
+  );
+
+  const dragging = useFileDrop((uri, fileName) => {
+    void openDocument(uri, fileName);
+  });
 
   const openPicker = async (): Promise<void> => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -25,57 +77,103 @@ export function HomeScreen() {
       return;
     }
     const asset = result.assets[0];
-    await openFromUri(asset.uri, asset.name ?? 'Document.pdf');
-    navigation.navigate('Editor');
+    await openDocument(asset.uri, asset.name ?? 'Document.pdf');
   };
 
   const startBlank = async (): Promise<void> => {
     await createBlank();
-    navigation.navigate('Editor');
+    enterEditor();
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.hero}>
-        <Text style={styles.kicker}>STRUCTURAL PDF WORKSPACE</Text>
-        <Text style={styles.title}>PDF Editor</Text>
-        <Text style={styles.subtitle}>
-          Load a document, rewrite its content stream, and export a lossless
-          PDF. Text and images are first-class AST nodes — not flattened
-          annotations.
-        </Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
+      >
+        <View style={styles.content}>
+          <View style={styles.brand}>
+            <View style={styles.logo}>
+              <Feather name="file-text" size={22} color={colors.textInverse} />
+            </View>
+            <Text style={styles.brandName}>PDF Editor</Text>
+          </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            void openPicker();
-          }}
-          style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-        >
-          <Text style={styles.primaryLabel}>
-            {status === 'loading' ? 'Opening…' : 'Open PDF'}
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, compact && styles.titleCompact]}
+          >
+            Edit any PDF like a normal document.
           </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            void startBlank();
-          }}
-          style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
-        >
-          <Text style={styles.secondaryLabel}>Create blank letter page</Text>
-        </Pressable>
-        {errorMessage !== null ? (
-          <Text style={styles.error}>{errorMessage}</Text>
-        ) : null}
-      </View>
+          <Text style={styles.subtitle}>
+            Change the words on the page, add text and images, then save the
+            result in the format you need.
+          </Text>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Author Alghisi Alessandro Paolo</Text>
-        <Text style={styles.footerText}>alexalghisi@gmail.com</Text>
-      </View>
+          <View
+            testID="drop-zone"
+            style={[styles.dropZone, dragging && styles.dropZoneActive]}
+          >
+            <View style={styles.dropIcon}>
+              <Feather name="upload-cloud" size={26} color={colors.accent} />
+            </View>
+            <Text style={styles.dropTitle}>
+              {dragging ? 'Drop it to start editing' : 'Choose a file to begin'}
+            </Text>
+            {Platform.OS === 'web' && !compact ? (
+              <Text style={styles.dropHint}>
+                or drag a file anywhere onto this page
+              </Text>
+            ) : null}
+            <View style={styles.actions}>
+              <ToolbarButton
+                label="Open PDF"
+                text={loading ? 'Opening…' : 'Open PDF'}
+                icon="folder"
+                variant="primary"
+                disabled={loading}
+                onPress={() => {
+                  void openPicker();
+                }}
+              />
+              <ToolbarButton
+                label="Start with a blank page"
+                icon="plus"
+                disabled={loading}
+                onPress={() => {
+                  void startBlank();
+                }}
+              />
+            </View>
+            {errorMessage !== null ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {errorMessage}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.features}>
+            {features.map((feature) => (
+              <View key={feature.title} style={styles.feature}>
+                <View style={styles.featureIcon}>
+                  <Feather
+                    name={feature.icon}
+                    size={16}
+                    color={colors.textPrimary}
+                  />
+                </View>
+                <View style={styles.featureText}>
+                  <Text style={styles.featureTitle}>{feature.title}</Text>
+                  <Text style={styles.featureBody}>{feature.text}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.footer}>
+            Built by Alghisi Alessandro Paolo · alexalghisi@gmail.com
+          </Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -84,64 +182,132 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: spacing.xl,
-    justifyContent: 'space-between',
   },
-  hero: {
-    marginTop: spacing.xxl,
+  scroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xxl,
+  },
+  scrollCompact: {
+    padding: spacing.lg,
+    justifyContent: 'flex-start',
+  },
+  content: {
+    width: '100%',
+    maxWidth: layout.contentMaxWidth,
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  kicker: {
-    ...typography.caption,
-    color: colors.accent,
-    letterSpacing: 1.6,
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  brandName: {
+    ...typography.title,
+    color: colors.textPrimary,
   },
   title: {
     ...typography.display,
     color: colors.textPrimary,
   },
+  titleCompact: {
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.6,
+  },
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-    lineHeight: 22,
+    marginTop: spacing.md,
   },
-  actions: {
-    gap: spacing.md,
-  },
-  primary: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.lg,
+  dropZone: {
     alignItems: 'center',
-  },
-  secondary: {
-    borderRadius: radius.md,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.borderStrong,
     backgroundColor: colors.surface,
   },
-  primaryLabel: {
-    ...typography.heading,
-    color: colors.textInverse,
+  dropZoneActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
-  secondaryLabel: {
-    ...typography.heading,
+  dropIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+  },
+  dropTitle: {
+    ...typography.title,
     color: colors.textPrimary,
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
-  pressed: {
-    opacity: 0.85,
+  dropHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginTop: spacing.lg,
   },
   error: {
     ...typography.caption,
     color: colors.danger,
+    marginTop: spacing.md,
+    textAlign: 'center',
   },
-  footer: {
-    gap: 2,
+  features: {
+    gap: spacing.lg,
+    marginTop: spacing.xl,
   },
-  footerText: {
+  feature: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+  },
+  featureText: {
+    flex: 1,
+  },
+  featureTitle: {
+    ...typography.heading,
+    color: colors.textPrimary,
+  },
+  featureBody: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  footer: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
   },
 });

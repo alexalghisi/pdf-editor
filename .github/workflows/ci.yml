@@ -36,9 +36,7 @@ jobs:
       - name: Web build
         run: npm run build:web
 
-      # Opens a real PDF in the built app with Chrome, edits its text and
-      # saves it as PDF, Word and CSV, on a desktop and a phone viewport.
-      - name: End-to-end text editing
+      - name: End-to-end tests
         run: CHROME_PATH="$(which google-chrome)" npm run e2e
 
       - name: Upload e2e failure screenshot
@@ -47,4 +45,12 @@ jobs:
         with:
           name: e2e-failure
           path: e2e-failure.png
+          if-no-files-found: ignore
+
+      - name: Upload responsive screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-screenshots
+          path: e2e-screenshots
           if-no-files-found: ignore
