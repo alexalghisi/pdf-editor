@@ -12,12 +12,11 @@ module.exports = {
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
     '!src/**/index.ts',
-    '!src/presentation/screens/**',
     '!src/presentation/canvas/**',
-    '!src/presentation/components/**',
     '!src/presentation/navigation/**',
     '!src/infrastructure/native/**',
     '!src/infrastructure/fs/**',
+    '!src/presentation/hooks/useFileDrop.ts',
   ],
   coverageThreshold: {
     global: {

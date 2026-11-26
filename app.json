@@ -42,7 +42,9 @@
         {
           "photosPermission": "PDF Editor uses your photo library when you insert an image into a document."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset"
     ]
   }
 }

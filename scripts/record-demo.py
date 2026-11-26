@@ -118,21 +118,7 @@ async def main():
             await (await chooser.value).set_files(str(SAMPLE))
             await page.get_by_text("Client: Contoso Bakery Ltd.", exact=True).wait_for()
             await page.wait_for_timeout(2500)
-            # The page sheet: the largest white element on screen. Frame its
-            # upper part (heading to totals) so the text reads at GIF size.
-            box = await page.evaluate(
-                """() => {
-                  let best = null;
-                  for (const el of document.querySelectorAll('div')) {
-                    const r = el.getBoundingClientRect();
-                    const bg = getComputedStyle(el).backgroundColor;
-                    if (bg === 'rgb(246, 241, 231)' && (!best || r.width * r.height > best.width * best.height)) {
-                      best = { x: r.x, y: r.y, width: r.width, height: r.height };
-                    }
-                  }
-                  return best;
-                }"""
-            )
+            box = await page.get_by_test_id("pdf-page").bounding_box()
             clip = {
                 "x": box["x"] + box["width"] * 0.06,
                 "y": box["y"] + box["height"] * 0.05,

@@ -65,6 +65,7 @@ export function PdfCanvas({ page, rasterUri }: Props) {
             {scale > 0 ? (
               <Pressable onPress={() => selectNode(null)}>
                 <View
+                  testID="pdf-page"
                   style={[
                     styles.paper,
                     { width: pageWidth, height: pageHeight },

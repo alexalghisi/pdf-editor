@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,7 +13,14 @@ import { PdfCanvas } from '@/presentation/canvas/PdfCanvas';
 import { SaveAsSheet } from '@/presentation/components/SaveAsSheet';
 import { ToolbarButton } from '@/presentation/components/ToolbarButton';
 import { useEditorStore } from '@/presentation/store/editorStore';
-import { colors, spacing, typography } from '@/presentation/theme';
+import {
+  colors,
+  elevation,
+  radius,
+  spacing,
+  typography,
+} from '@/presentation/theme';
+import { formatZoom, useCompact } from '@/presentation/theme/responsive';
 
 export function EditorScreen() {
   const navigation = useNavigation();
@@ -28,6 +36,7 @@ export function EditorScreen() {
   const deleteSelected = useEditorStore((state) => state.deleteSelected);
   const saveAs = useEditorStore((state) => state.saveAs);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const compact = useCompact();
   const setPage = useEditorStore((state) => state.setPage);
   const setZoom = useEditorStore((state) => state.setZoom);
   const zoom = useEditorStore((state) => state.zoom);
@@ -39,9 +48,14 @@ export function EditorScreen() {
 
   if (document === null) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <Text style={styles.meta}>No document loaded.</Text>
-        <ToolbarButton label="Back" onPress={() => navigation.goBack()} />
+      <SafeAreaView style={[styles.safe, styles.empty]}>
+        <Feather name="file" size={32} color={colors.textSecondary} />
+        <Text style={styles.emptyTitle}>No document is open</Text>
+        <ToolbarButton
+          label="Back to start"
+          icon="arrow-left"
+          onPress={() => navigation.goBack()}
+        />
       </SafeAreaView>
     );
   }
@@ -94,28 +108,75 @@ export function EditorScreen() {
     }
   };
 
+  const pageLabel = `Page ${currentPageIndex + 1} of ${document.pageCount}`;
+  const activity =
+    status === 'saving'
+      ? ' · Saving…'
+      : status === 'loading'
+        ? ' · Loading…'
+        : '';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.topBar}>
-        <ToolbarButton label="Close" onPress={() => navigation.goBack()} />
+        <ToolbarButton
+          label="Close"
+          icon="arrow-left"
+          iconOnly
+          variant="ghost"
+          onPress={() => navigation.goBack()}
+        />
         <View style={styles.titleBlock}>
           <Text numberOfLines={1} style={styles.title}>
             {fileName}
           </Text>
-          <Text style={styles.meta}>
-            Page {currentPageIndex + 1} / {document.pageCount} · {status}
+          <Text numberOfLines={1} style={styles.meta}>
+            {pageLabel}
+            {activity}
           </Text>
         </View>
-        <ToolbarButton label="Save as…" onPress={() => setSaveMenuOpen(true)} />
+        <ToolbarButton
+          label="Save as…"
+          icon="download"
+          iconOnly={compact}
+          variant="primary"
+          onPress={() => setSaveMenuOpen(true)}
+        />
       </View>
 
       {errorMessage !== null ? (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {errorMessage}
-        </Text>
+        <View accessible accessibilityRole="alert" style={styles.error}>
+          <Feather name="alert-circle" size={16} color={colors.danger} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
       ) : null}
 
-      <PdfCanvas page={page} rasterUri={rasterUri} />
+      <View style={styles.stage}>
+        <PdfCanvas page={page} rasterUri={rasterUri} />
+        {document.pageCount > 1 ? (
+          <View style={styles.pager}>
+            <ToolbarButton
+              label="Previous page"
+              icon="chevron-left"
+              iconOnly
+              variant="ghost"
+              disabled={currentPageIndex === 0}
+              onPress={() => setPage(currentPageIndex - 1)}
+            />
+            <Text style={styles.pagerLabel}>
+              {currentPageIndex + 1} / {document.pageCount}
+            </Text>
+            <ToolbarButton
+              label="Next page"
+              icon="chevron-right"
+              iconOnly
+              variant="ghost"
+              disabled={currentPageIndex >= document.pageCount - 1}
+              onPress={() => setPage(currentPageIndex + 1)}
+            />
+          </View>
+        ) : null}
+      </View>
 
       <SaveAsSheet
         visible={saveMenuOpen}
@@ -126,47 +187,83 @@ export function EditorScreen() {
       />
 
       <View style={styles.bottomBar}>
-        <ToolbarButton
-          label="Text"
-          onPress={() => {
-            void addText('New text');
-          }}
-        />
-        <ToolbarButton
-          label="Image"
-          onPress={() => {
-            void insertImage();
-          }}
-        />
-        <ToolbarButton
-          label="Delete"
-          danger
-          disabled={selectedNodeId === null}
-          onPress={() => {
-            void deleteSelected();
-          }}
-        />
-        <ToolbarButton label="−" onPress={() => setZoom(zoom - 0.2)} />
-        <ToolbarButton label="+" onPress={() => setZoom(zoom + 0.2)} />
-        <ToolbarButton
-          label="Prev"
-          disabled={currentPageIndex === 0}
-          onPress={() => setPage(currentPageIndex - 1)}
-        />
-        <ToolbarButton
-          label="Next"
-          disabled={currentPageIndex >= document.pageCount - 1}
-          onPress={() => setPage(currentPageIndex + 1)}
-        />
+        <View style={styles.group}>
+          <ToolbarButton
+            label="Add text"
+            text="Text"
+            icon="type"
+            iconOnly={compact}
+            onPress={() => {
+              void addText('New text');
+            }}
+          />
+          <ToolbarButton
+            label="Add image"
+            text="Image"
+            icon="image"
+            iconOnly={compact}
+            onPress={() => {
+              void insertImage();
+            }}
+          />
+          <ToolbarButton
+            label="Delete"
+            icon="trash-2"
+            iconOnly={compact}
+            variant="danger"
+            disabled={selectedNodeId === null}
+            onPress={() => {
+              void deleteSelected();
+            }}
+          />
+        </View>
+        <View style={styles.group}>
+          <ToolbarButton
+            label="Zoom out"
+            icon="minus"
+            iconOnly
+            variant="ghost"
+            disabled={zoom <= MIN_ZOOM}
+            onPress={() => setZoom(zoom - ZOOM_STEP)}
+          />
+          <ToolbarButton
+            label="Reset zoom"
+            text={formatZoom(zoom)}
+            variant="ghost"
+            onPress={() => setZoom(1)}
+          />
+          <ToolbarButton
+            label="Zoom in"
+            icon="plus"
+            iconOnly
+            variant="ghost"
+            disabled={zoom >= MAX_ZOOM}
+            onPress={() => setZoom(zoom + ZOOM_STEP)}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
+const ZOOM_STEP = 0.2;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    padding: spacing.xl,
+  },
+  emptyTitle: {
+    ...typography.title,
+    color: colors.textPrimary,
   },
   topBar: {
     flexDirection: 'row',
@@ -176,9 +273,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   titleBlock: {
     flex: 1,
+    minWidth: 0,
   },
   title: {
     ...typography.heading,
@@ -189,19 +288,58 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.dangerSoft,
+  },
+  errorText: {
     ...typography.caption,
+    flex: 1,
     color: colors.danger,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  },
+  stage: {
+    flex: 1,
+    backgroundColor: colors.canvas,
+  },
+  pager: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
+    ...elevation,
+  },
+  pagerLabel: {
+    ...typography.label,
+    color: colors.textPrimary,
+    minWidth: 52,
+    textAlign: 'center',
   },
   bottomBar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: spacing.xl,
+    rowGap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
+  },
+  group: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
 });

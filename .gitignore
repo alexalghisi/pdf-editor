@@ -48,3 +48,4 @@ coverage/
 /public/pdf.worker.min.mjs
 .demo-site
 e2e-failure.png
+e2e-screenshots/
