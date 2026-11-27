@@ -40,6 +40,8 @@ const details: Record<ExportFormat, { icon: IconName; hint: string }> = {
   html: { icon: 'globe', hint: 'Opens in any browser' },
   csv: { icon: 'grid', hint: 'Tables for Excel and Sheets' },
   txt: { icon: 'align-left', hint: 'Just the words' },
+  png: { icon: 'image', hint: 'This page as a sharp picture' },
+  jpg: { icon: 'camera', hint: 'This page as a small photo file' },
 };
 
 export function SaveAsSheet({ visible, onPick, onClose }: Props) {

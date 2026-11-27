@@ -39,11 +39,19 @@ describe('RenderPage', () => {
     const result = await useCase.execute(document, 0, 2);
 
     expect(engine.serialize).toHaveBeenCalledWith(document);
-    expect(renderer.renderPage).toHaveBeenCalledWith(bytes, 0, 2);
+    expect(renderer.renderPage).toHaveBeenCalledWith(bytes, 0, 2, 'png');
     expect(result).toEqual({
       ok: true,
       value: { uri: 'data:image/png', width: 1224, height: 1584 },
     });
+  });
+
+  it('asks the renderer for the requested image format', async () => {
+    const { renderer, useCase } = setup();
+
+    await useCase.execute(document, 0, 3, 'jpeg');
+
+    expect(renderer.renderPage).toHaveBeenCalledWith(bytes, 0, 3, 'jpeg');
   });
 
   it('rejects a page outside the document without rendering', async () => {

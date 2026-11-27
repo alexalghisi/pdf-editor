@@ -29,7 +29,7 @@ class PdfNativeEngineModule : Module() {
       }
     }
 
-    AsyncFunction("renderPage") { path: String, pageIndex: Int, scale: Double ->
+    AsyncFunction("renderPage") { path: String, pageIndex: Int, scale: Double, format: String? ->
       openRenderer(path).use { renderer ->
         renderer.openPage(pageIndex).use { page ->
           val width = (page.width * scale).toInt().coerceAtLeast(1)
@@ -39,9 +39,14 @@ class PdfNativeEngineModule : Module() {
           canvas.drawColor(Color.WHITE)
           page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
 
-          val output = File.createTempFile("pdf-page-$pageIndex-", ".png")
+          val jpeg = format == "jpeg"
+          val output = File.createTempFile("pdf-page-$pageIndex-", if (jpeg) ".jpg" else ".png")
           FileOutputStream(output).use { stream ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            if (jpeg) {
+              bitmap.compress(Bitmap.CompressFormat.JPEG, 92, stream)
+            } else {
+              bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            }
           }
           bitmap.recycle()
 

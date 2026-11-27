@@ -20,5 +20,6 @@ export type NativePdfEngineSpec = {
     path: string,
     pageIndex: number,
     scale: number,
+    format?: 'png' | 'jpeg',
   ): Promise<NativeRenderResult>;
 };

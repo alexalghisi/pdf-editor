@@ -14,8 +14,12 @@ import { BLACK, type RgbColor } from '@/domain/valueObjects/RgbColor';
 import {
   exportDocument,
   formatInfo,
+  imageFileName,
+  isImageFormat,
+  rasterFormat,
   withExtension,
   type ExportFormat,
+  type ImageExportFormat,
 } from '@/application/export/exporters';
 import { getAppContainer } from '@/infrastructure/di/container';
 import { createBlankPdfDocument } from '@/infrastructure/pdf/PdfLibAstEngine';
@@ -36,7 +40,7 @@ export type EditorState = {
   openFromUri: (uri: string, fileName: string) => Promise<void>;
   createBlank: () => Promise<void>;
   save: () => Promise<string | null>;
-  /** Writes the document as PDF, Word, HTML, CSV or text; returns the file URI. */
+  /** Writes the document as PDF, Word, HTML, CSV, text or a page image; returns the file URI. */
   saveAs: (format: ExportFormat) => Promise<string | null>;
   addText: (
     content: string,
@@ -102,6 +106,29 @@ function defaultImageBounds(document: PdfDocument, pageIndex: number): Rect {
 }
 
 const RASTER_SCALE = 2;
+const IMAGE_EXPORT_SCALE = 3;
+
+async function pageImageBytes(
+  document: PdfDocument,
+  pageIndex: number,
+  format: ImageExportFormat,
+): Promise<Uint8Array> {
+  const { renderPage, fileSystem } = getAppContainer();
+  const result = await renderPage.execute(
+    document,
+    pageIndex,
+    IMAGE_EXPORT_SCALE,
+    rasterFormat(format),
+  );
+  if (!result.ok) {
+    throw result.error;
+  }
+  const { uri } = result.value;
+  if (uri === '') {
+    throw new Error('This device cannot turn pages into images');
+  }
+  return fileSystem.readBinary(uri.startsWith('/') ? `file://${uri}` : uri);
+}
 
 let latestRenderTicket = 0;
 
@@ -197,21 +224,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (format === 'pdf') {
       return get().save();
     }
-    const { document, fileName } = get();
+    const { document, fileName, currentPageIndex } = get();
     if (document === null) {
       return null;
     }
     const { fileSystem } = getAppContainer();
     const info = formatInfo(format);
-    const target = withExtension(fileName, info.extension);
+    const target = isImageFormat(format)
+      ? imageFileName(
+          fileName,
+          info.extension,
+          currentPageIndex,
+          document.pageCount,
+        )
+      : withExtension(fileName, info.extension);
     const destination = fileSystem.cachePath(target);
     set({ status: 'saving' });
     try {
-      const bytes = exportDocument(
-        document,
-        format,
-        document.metadata.title ?? withExtension(fileName, '').slice(0, -1),
-      );
+      const bytes = isImageFormat(format)
+        ? await pageImageBytes(document, currentPageIndex, format)
+        : exportDocument(
+            document,
+            format,
+            document.metadata.title ?? withExtension(fileName, '').slice(0, -1),
+          );
       await fileSystem.writeBinary(destination, bytes, info.mimeType);
       set({ status: 'idle', errorMessage: null });
       return destination;

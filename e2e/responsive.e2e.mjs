@@ -40,6 +40,8 @@ const SHEET_BUTTONS = [
   'Save as Web page (.html)',
   'Save as Spreadsheet (.csv)',
   'Save as Plain text (.txt)',
+  'Save as PNG image (.png)',
+  'Save as JPEG image (.jpg)',
   'Cancel',
 ];
 

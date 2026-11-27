@@ -7,7 +7,15 @@ import {
   type LayoutPage,
 } from '@/application/export/documentLayout';
 
-export type ExportFormat = 'pdf' | 'docx' | 'html' | 'csv' | 'txt';
+export type ImageExportFormat = 'png' | 'jpg';
+
+export type ExportFormat =
+  'pdf' | 'docx' | 'html' | 'csv' | 'txt' | ImageExportFormat;
+
+export type DocumentExportFormat = Exclude<
+  ExportFormat,
+  'pdf' | ImageExportFormat
+>;
 
 export type ExportFormatInfo = {
   readonly format: ExportFormat;
@@ -55,7 +63,45 @@ export const EXPORT_FORMATS: readonly ExportFormatInfo[] = [
     mimeType: 'text/plain',
     uti: 'public.plain-text',
   },
+  {
+    format: 'png',
+    label: 'PNG image (.png)',
+    extension: 'png',
+    mimeType: 'image/png',
+    uti: 'public.png',
+  },
+  {
+    format: 'jpg',
+    label: 'JPEG image (.jpg)',
+    extension: 'jpg',
+    mimeType: 'image/jpeg',
+    uti: 'public.jpeg',
+  },
 ];
+
+export function isImageFormat(
+  format: ExportFormat,
+): format is ImageExportFormat {
+  return format === 'png' || format === 'jpg';
+}
+
+export function rasterFormat(format: ImageExportFormat): 'png' | 'jpeg' {
+  return format === 'jpg' ? 'jpeg' : 'png';
+}
+
+export function imageFileName(
+  fileName: string,
+  extension: string,
+  pageIndex: number,
+  pageCount: number,
+): string {
+  const named = withExtension(fileName, extension);
+  if (pageCount <= 1) {
+    return named;
+  }
+  const base = named.slice(0, -(extension.length + 1));
+  return `${base}-page-${pageIndex + 1}.${extension}`;
+}
 
 export function formatInfo(format: ExportFormat): ExportFormatInfo {
   const info = EXPORT_FORMATS.find((entry) => entry.format === format);
@@ -199,7 +245,7 @@ export function toDocx(document: PdfDocument, title: string): Uint8Array {
 /** Non-PDF exports, as the bytes to write. */
 export function exportDocument(
   document: PdfDocument,
-  format: Exclude<ExportFormat, 'pdf'>,
+  format: DocumentExportFormat,
   title: string,
 ): Uint8Array {
   switch (format) {

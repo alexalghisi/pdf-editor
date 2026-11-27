@@ -1,3 +1,5 @@
+export type RasterFormat = 'png' | 'jpeg';
+
 export type PageRenderResult = {
   readonly uri: string;
   readonly width: number;
@@ -14,5 +16,6 @@ export interface PageRendererPort {
     pdfBytes: Uint8Array,
     pageIndex: number,
     scale: number,
+    format?: RasterFormat,
   ): Promise<PageRenderResult>;
 }

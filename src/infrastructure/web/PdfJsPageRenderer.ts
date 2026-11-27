@@ -6,7 +6,10 @@ import {
 import type {
   PageRendererPort,
   PageRenderResult,
+  RasterFormat,
 } from '@/application/ports/PageRendererPort';
+
+const JPEG_QUALITY = 0.92;
 
 const WORKER_PATH = `${process.env.EXPO_BASE_URL ?? ''}/pdf.worker.min.mjs`;
 
@@ -23,6 +26,7 @@ export class PdfJsPageRenderer implements PageRendererPort {
     pdfBytes: Uint8Array,
     pageIndex: number,
     scale: number,
+    format: RasterFormat = 'png',
   ): Promise<PageRenderResult> {
     ensureWorker();
     const pdf = await getDocument({ data: pdfBytes.slice() }).promise;
@@ -38,7 +42,10 @@ export class PdfJsPageRenderer implements PageRendererPort {
       }
       await page.render({ canvasContext: context, viewport }).promise;
       return {
-        uri: canvas.toDataURL('image/png'),
+        uri:
+          format === 'jpeg'
+            ? canvas.toDataURL('image/jpeg', JPEG_QUALITY)
+            : canvas.toDataURL('image/png'),
         width: canvas.width,
         height: canvas.height,
       };

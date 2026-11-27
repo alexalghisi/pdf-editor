@@ -20,6 +20,7 @@ const mockMutateMoveNode = jest.fn();
 const mockCreateBlank = jest.fn();
 const mockRenderPage = jest.fn();
 const mockWriteBinary = jest.fn();
+const mockReadBinary = jest.fn();
 
 jest.mock('@/infrastructure/di/container', () => {
   const actual = jest.requireActual<
@@ -32,7 +33,7 @@ jest.mock('@/infrastructure/di/container', () => {
       fileSystem: {
         cachePath: mockCachePath,
         writeBinary: mockWriteBinary,
-        readBinary: jest.fn(),
+        readBinary: mockReadBinary,
       },
       renderer: { renderPage: jest.fn() },
       loadDocument: {
@@ -231,6 +232,78 @@ describe('useEditorStore', () => {
         'file://cache/report.pdf',
       );
       expect(mockWriteBinary).not.toHaveBeenCalled();
+    });
+
+    it('saves the current page as a PNG image', async () => {
+      const image = new Uint8Array([137, 80, 78, 71]);
+      withDocument(documentStub([textNode(0)]));
+      useEditorStore.setState({ fileName: 'report.pdf' });
+      mockRenderPage.mockResolvedValue(
+        ok({ uri: 'data:image/png;base64,AA', width: 30, height: 40 }),
+      );
+      mockReadBinary.mockResolvedValue(image);
+
+      const destination = await useEditorStore.getState().saveAs('png');
+
+      expect(destination).toBe('file://cache/report.png');
+      expect(mockRenderPage).toHaveBeenCalledWith(
+        expect.anything(),
+        0,
+        3,
+        'png',
+      );
+      expect(mockReadBinary).toHaveBeenCalledWith('data:image/png;base64,AA');
+      expect(mockWriteBinary).toHaveBeenCalledWith(
+        'file://cache/report.png',
+        image,
+        'image/png',
+      );
+      expect(useEditorStore.getState().status).toBe('idle');
+    });
+
+    it('saves a JPEG and reads a native render from its file path', async () => {
+      withDocument(documentStub([textNode(0)]));
+      useEditorStore.setState({ fileName: 'report.pdf' });
+      mockRenderPage.mockResolvedValue(
+        ok({ uri: '/tmp/pdf-page-0.jpg', width: 30, height: 40 }),
+      );
+      mockReadBinary.mockResolvedValue(new Uint8Array([255, 216, 255]));
+
+      await useEditorStore.getState().saveAs('jpg');
+
+      expect(mockRenderPage).toHaveBeenCalledWith(
+        expect.anything(),
+        0,
+        3,
+        'jpeg',
+      );
+      expect(mockReadBinary).toHaveBeenCalledWith('file:///tmp/pdf-page-0.jpg');
+      expect(mockWriteBinary).toHaveBeenCalledWith(
+        'file://cache/report.jpg',
+        expect.any(Uint8Array),
+        'image/jpeg',
+      );
+    });
+
+    it('reports a page that could not be rendered as an image', async () => {
+      withDocument(documentStub([textNode(0)]));
+      mockRenderPage.mockResolvedValue(
+        err(new PdfDomainError('SERIALIZATION_FAILED', 'render failed')),
+      );
+
+      await expect(useEditorStore.getState().saveAs('png')).resolves.toBeNull();
+      expect(useEditorStore.getState().errorMessage).toBe('render failed');
+      expect(mockWriteBinary).not.toHaveBeenCalled();
+    });
+
+    it('reports a device without a page renderer', async () => {
+      withDocument(documentStub([textNode(0)]));
+      mockRenderPage.mockResolvedValue(ok({ uri: '', width: 0, height: 0 }));
+
+      await expect(useEditorStore.getState().saveAs('jpg')).resolves.toBeNull();
+      expect(useEditorStore.getState().errorMessage).toBe(
+        'This device cannot turn pages into images',
+      );
     });
 
     it('reports a failed write', async () => {
