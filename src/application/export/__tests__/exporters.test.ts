@@ -13,6 +13,9 @@ import {
   toDocx,
   toHtml,
   toPlainText,
+  imageFileName,
+  isImageFormat,
+  rasterFormat,
   withExtension,
 } from '@/application/export/exporters';
 
@@ -133,5 +136,18 @@ describe('exporters', () => {
     expect(withExtension('report.pdf', 'docx')).toBe('report.docx');
     expect(withExtension('archive.tar', 'csv')).toBe('archive.csv');
     expect(withExtension('.pdf', 'txt')).toBe('document.txt');
+  });
+
+  it('tells image formats apart and maps them to raster formats', () => {
+    expect(isImageFormat('png')).toBe(true);
+    expect(isImageFormat('jpg')).toBe(true);
+    expect(isImageFormat('docx')).toBe(false);
+    expect(rasterFormat('png')).toBe('png');
+    expect(rasterFormat('jpg')).toBe('jpeg');
+  });
+
+  it('names an image after the document and its page', () => {
+    expect(imageFileName('report.pdf', 'png', 0, 1)).toBe('report.png');
+    expect(imageFileName('report.pdf', 'jpg', 2, 5)).toBe('report-page-3.jpg');
   });
 });

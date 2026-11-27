@@ -1,6 +1,7 @@
 import type {
   PageRendererPort,
   PageRenderResult,
+  RasterFormat,
 } from '@/application/ports/PageRendererPort';
 import type { PdfDocument } from '@/domain/entities/PdfDocument';
 import { getPage } from '@/domain/entities/PdfDocument';
@@ -18,11 +19,14 @@ export class RenderPage {
     document: PdfDocument,
     pageIndex: number,
     scale: number,
+    format: RasterFormat = 'png',
   ): Promise<Result<PageRenderResult>> {
     try {
       getPage(document, pageIndex);
       const bytes = await this.engine.serialize(document);
-      return ok(await this.renderer.renderPage(bytes, pageIndex, scale));
+      return ok(
+        await this.renderer.renderPage(bytes, pageIndex, scale, format),
+      );
     } catch (error) {
       if (error instanceof PdfDomainError) {
         return err(error);

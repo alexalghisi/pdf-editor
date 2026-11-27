@@ -25,7 +25,7 @@ The GIF is the live web app on a real PDF printed from Chrome ([sample-service-a
 1. **Click a line** to select it, **click it again** to edit. It opens with the whole line selected, so typing overwrites it.
 2. Inside the line it behaves like a text field in a document: click or use the arrow keys to place the caret, **Shift+arrows / double-click / drag** to select a word, **Backspace/Delete**, **Ctrl/Cmd+A**, copy and paste.
 3. **Enter** (or clicking elsewhere) writes the new text into the PDF; **Esc** cancels.
-4. **Save as…** PDF, Word, HTML, CSV or text.
+4. **Save as…** PDF, Word, HTML, CSV, text, PNG or JPEG.
 
 To open a file, press **Open PDF** or drag it anywhere onto the start screen.
 
@@ -108,7 +108,7 @@ UI components never import `pdf-lib`. The store talks only to use cases.
 - Preserve vector art as passthrough operator groups.
 - Untouched operators are written back as they were, so a page that is only partly edited keeps the rest of its content operator for operator — including pages drawn under a flipped or scaled CTM, as browsers and office suites produce them.
 - Lossless save that restores title, author, creator, and producer.
-- **Save as** PDF, Word (`.docx`), web page (`.html`, every line at its PDF position), spreadsheet (`.csv`, table cells become columns, UTF-8 with BOM for Excel) or plain text. On the web the file downloads; on iOS/Android it opens the share sheet.
+- **Save as** PDF, Word (`.docx`), web page (`.html`, every line at its PDF position), spreadsheet (`.csv`, table cells become columns, UTF-8 with BOM for Excel) or plain text, or the current page as a PNG or JPEG image (rendered at 3× for sharp text). On the web the file downloads; on iOS/Android it opens the share sheet.
 
 ![Save as menu](docs/save-as.jpg)
 
@@ -177,16 +177,16 @@ site through the `Deploy web app` workflow.
 
 ### Scripts
 
-| Command                                  | Purpose                                                                                                                         |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`                               | Jest + Testing Library (TDD suite)                                                                                              |
-| `npm run test:coverage`                  | Coverage with thresholds                                                                                                        |
-| `npm run typecheck`                      | `tsc --noEmit`, strict + `noUncheckedIndexedAccess`                                                                             |
-| `npx expo start`                         | Metro bundler                                                                                                                   |
-| `npm run build:web`                      | Static web export to `./dist`                                                                                                   |
-| `npm run e2e`                            | Edits the sample PDF in the built app with Chrome (desktop + phone viewport) and checks the saved PDF, Word and CSV; runs in CI |
-| `python3 scripts/record-demo.py`         | Re-records `docs/editor-demo.gif` from the built app                                                                            |
-| `python3 scripts/capture-screenshots.py` | Re-captures the desktop and phone screenshots                                                                                   |
+| Command                                  | Purpose                                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm test`                               | Jest + Testing Library (TDD suite)                                                                                                         |
+| `npm run test:coverage`                  | Coverage with thresholds                                                                                                                   |
+| `npm run typecheck`                      | `tsc --noEmit`, strict + `noUncheckedIndexedAccess`                                                                                        |
+| `npx expo start`                         | Metro bundler                                                                                                                              |
+| `npm run build:web`                      | Static web export to `./dist`                                                                                                              |
+| `npm run e2e`                            | Edits the sample PDF in the built app with Chrome (desktop + phone viewport) and checks the saved PDF, Word, CSV, PNG and JPEG; runs in CI |
+| `python3 scripts/record-demo.py`         | Re-records `docs/editor-demo.gif` from the built app                                                                                       |
+| `python3 scripts/capture-screenshots.py` | Re-captures the desktop and phone screenshots                                                                                              |
 
 ## TDD map
 

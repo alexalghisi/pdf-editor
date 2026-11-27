@@ -30,7 +30,7 @@ public class PdfNativeEngineModule: Module {
       return ["width": bounds.width, "height": bounds.height]
     }
 
-    AsyncFunction("renderPage") { (path: String, pageIndex: Int, scale: Double) -> [String: Any] in
+    AsyncFunction("renderPage") { (path: String, pageIndex: Int, scale: Double, format: String?) -> [String: Any] in
       guard
         let document = PDFDocument(url: URL(fileURLWithPath: Self.normalized(path))),
         let page = document.page(at: pageIndex)
@@ -55,11 +55,12 @@ public class PdfNativeEngineModule: Module {
         context.cgContext.restoreGState()
       }
 
-      guard let data = image.pngData() else {
+      let jpeg = format == "jpeg"
+      guard let data = jpeg ? image.jpegData(compressionQuality: 0.92) : image.pngData() else {
         throw PdfNativeEngineError.renderFailed
       }
       let output = FileManager.default.temporaryDirectory
-        .appendingPathComponent("pdf-page-\(pageIndex)-\(Int(scale * 100)).png")
+        .appendingPathComponent("pdf-page-\(pageIndex)-\(Int(scale * 100)).\(jpeg ? "jpg" : "png")")
       try data.write(to: output, options: .atomic)
       return [
         "uri": output.path,

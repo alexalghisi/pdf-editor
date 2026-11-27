@@ -38,6 +38,7 @@ The working list for this project. Every round of work starts here: pick the hig
 
 ## Ideas
 
+- Save every page as images in one ZIP.
 - Search inside the document, with matches highlighted on the page.
 - Annotations: highlight, underline, free-hand drawing.
 - Fill in AcroForm fields.
@@ -46,6 +47,11 @@ The working list for this project. Every round of work starts here: pick the hig
 - Romanian and Italian interface.
 
 ## Done
+
+### 2026-11-27
+
+- Save as PNG or JPEG: the current page is rendered at 3× and downloaded as an image (`report.png`, or `report-page-2.jpg` in a multi-page document).
+- Tests: store, exporter and renderer unit tests for image export; the end-to-end run saves both image formats and checks the files.
 
 ### 2026-11-26
 

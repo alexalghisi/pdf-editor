@@ -1,6 +1,6 @@
 // End-to-end: opens a Chrome-printed PDF in the built web app, edits its text
 // like a document (overwrite a line, replace one word, Escape to cancel),
-// then saves as PDF, Word and CSV and checks what was written.
+// then saves as PDF, Word, CSV, PNG and JPEG and checks what was written.
 //
 //   npm run build:web && npm run e2e
 //
@@ -179,8 +179,22 @@ async function main() {
       const csv = readFileSync(csvPath, 'utf8');
       assert.match(csv, /Website design,"2,400 EUR"/);
 
+      const pngPath = await saveAs(page, 'PNG image (.png)', folder);
+      const png = readFileSync(pngPath);
+      assert.match(pngPath, /\.png$/);
+      assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+      assert.ok(png.readUInt32BE(16) >= 1500, 'PNG is rendered at 3x');
+      assert.ok(png.readUInt32BE(20) > png.readUInt32BE(16), 'PNG is portrait');
+      assert.ok(png.length > 20000, 'PNG holds the page content');
+
+      const jpgPath = await saveAs(page, 'JPEG image (.jpg)', folder);
+      const jpg = readFileSync(jpgPath);
+      assert.match(jpgPath, /\.jpg$/);
+      assert.equal(jpg.subarray(0, 3).toString('hex'), 'ffd8ff');
+      assert.ok(jpg.length > 20000, 'JPEG holds the page content');
+
       console.log(
-        `✓ ${viewport.name}: edit, word replace, escape, save as PDF/Word/CSV`,
+        `✓ ${viewport.name}: edit, word replace, escape, save as PDF/Word/CSV/PNG/JPEG`,
       );
       await context.close();
     }

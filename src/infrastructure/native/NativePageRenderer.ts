@@ -2,6 +2,7 @@ import type { FileSystemPort } from '@/application/ports/FileSystemPort';
 import type {
   PageRendererPort,
   PageRenderResult,
+  RasterFormat,
 } from '@/application/ports/PageRendererPort';
 import type { NativePdfEngineSpec } from '@/infrastructure/native/NativePdfEngine';
 
@@ -31,12 +32,13 @@ export class NativePageRenderer implements PageRendererPort {
     pdfBytes: Uint8Array,
     pageIndex: number,
     scale: number,
+    format: RasterFormat = 'png',
   ): Promise<PageRenderResult> {
     if (this.native === null) {
       return { uri: '', width: 0, height: 0 };
     }
     const path = this.fileSystem.cachePath(RENDER_SOURCE);
     await this.fileSystem.writeBinary(path, pdfBytes);
-    return this.native.renderPage(path, pageIndex, scale);
+    return this.native.renderPage(path, pageIndex, scale, format);
   }
 }
