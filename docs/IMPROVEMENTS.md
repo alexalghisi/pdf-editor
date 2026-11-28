@@ -35,6 +35,10 @@ The working list for this project. Every round of work starts here: pick the hig
 | 16  | Images        | Resize handles for images and text boxes.                                                          |
 | 17  | Files         | Remember recently opened documents (IndexedDB on web).                                             |
 | 18  | Feedback      | Toast after a successful save; progress indicator for large files.                                 |
+| 19  | iOS           | Port the content-stream rewriter to Swift so the native app replaces text instead of covering it.  |
+| 20  | iOS           | Page thumbnails, pinch to resize images, match the page background colour behind edited lines.     |
+| 21  | Releases      | Sign and notarise the macOS and Windows builds; TestFlight for iOS; Play Store bundle for Android. |
+| 22  | Desktop       | Open a PDF passed on the command line or by double-click; native Save dialog.                      |
 
 ## Ideas
 
@@ -47,6 +51,12 @@ The working list for this project. Every round of work starts here: pick the hig
 - Romanian and Italian interface.
 
 ## Done
+
+### 2026-11-28
+
+- Native iPhone and iPad app in `ios-native/` (SwiftUI, PDFKit): tap a line to edit it, add text and images, change size, colour and weight, hold and drag to move, undo and redo, rotate and delete pages, Save as in seven formats. 40 XCTest unit tests run on the simulator in CI.
+- Desktop app in `desktop/` (Electron) for Windows, macOS and Linux, with tests for the local file server.
+- Release workflow: one tag builds Windows, macOS, Linux, Android, iOS and web downloads and attaches them to the GitHub release.
 
 ### 2026-11-27
 

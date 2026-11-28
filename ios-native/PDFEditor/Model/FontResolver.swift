@@ -10,6 +10,21 @@ enum FontResolver {
         return String(name[name.index(after: plus)...])
     }
 
+    static func isBold(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return lower.contains("bold") || lower.contains("black") || lower.contains("heavy")
+    }
+
+    static func toggledBold(_ name: String) -> String {
+        let cleaned = cleanName(name)
+        guard isBold(cleaned) else { return fallbackName(for: cleaned + "-Bold") }
+        var stripped = cleaned
+        for token in ["SemiBold", "Semibold", "Bold", "bold", "Black", "Heavy"] {
+            stripped = stripped.replacingOccurrences(of: token, with: "")
+        }
+        return fallbackName(for: stripped)
+    }
+
     static func fallbackName(for name: String) -> String {
         let lower = name.lowercased()
         let bold = lower.contains("bold") || lower.contains("black") || lower.contains("heavy")

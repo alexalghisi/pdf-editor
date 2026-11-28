@@ -8,6 +8,54 @@
 
 **▶ Open the app: https://alexalghisi.github.io/pdf-editor/** — runs in any modern browser on desktop, Android and iPhone. No install needed.
 
+**⬇ [Download](#download)** for Windows, macOS, Linux, Android, iPhone and iPad.
+
+## Download
+
+Every release ships a build for each platform. The links always point at the newest one.
+
+| Platform                 | Download                                                                                                                                    | How to install                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Windows 10 / 11          | [PDF-Editor-Windows-x64.exe](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-Windows-x64.exe)                 | Portable, nothing to install. Double-click; on the SmartScreen notice choose **More info → Run anyway**. |
+| macOS (Apple Silicon)    | [PDF-Editor-macOS-Apple-Silicon.zip](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-macOS-Apple-Silicon.zip) | Unzip, move to Applications, then right-click the app and choose **Open** the first time.                |
+| macOS (Intel)            | [PDF-Editor-macOS-Intel.zip](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-macOS-Intel.zip)                 | Same as above.                                                                                           |
+| Linux                    | [PDF-Editor-Linux-x86_64.AppImage](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-Linux-x86_64.AppImage)     | `chmod +x PDF-Editor-Linux-x86_64.AppImage`, then run it.                                                |
+| Android                  | [PDF-Editor-Android.apk](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-Android.apk)                         | Open the file on the phone and allow installing from this source.                                        |
+| iPhone and iPad          | [PDF-Editor-iOS-unsigned.ipa](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-iOS-unsigned.ipa)               | Unsigned build of the native app. Sign and install it with AltStore or Sideloadly, or run it from Xcode. |
+| iOS Simulator            | [PDF-Editor-iOS-Simulator.zip](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-iOS-Simulator.zip)             | Unzip and drag `PDFEditor.app` onto a running simulator.                                                 |
+| Any browser, self-hosted | [PDF-Editor-Web.zip](https://github.com/alexalghisi/pdf-editor/releases/latest/download/PDF-Editor-Web.zip)                                 | Static site. Serve the folder under `/pdf-editor/`.                                                      |
+
+The builds are not signed with a paid developer certificate, which is why Windows, macOS and iOS ask for the extra confirmation described above.
+
+## Native app for iPhone and iPad
+
+`ios-native/` is a separate app written in Swift with SwiftUI and PDFKit. It does not use React Native.
+
+| Start screen                                                            | Editing a line                                                               | iPad                                                                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| <img src="docs/ios/iphone-home.jpg" alt="iOS start screen" width="220"> | <img src="docs/ios/iphone-edit.jpg" alt="Editing a line on iOS" width="220"> | <img src="docs/ios/ipad-edit.jpg" alt="The editor on an iPad" width="300"> |
+
+- **Tap a line** to rewrite it. The text field opens above the keyboard with size and colour controls.
+- **Hold and drag** any text or image to move it. Add new text or a photo from the toolbar.
+- **Undo and redo** every change, including rotating and deleting pages.
+- **Save as** PDF, Word, HTML, CSV, text, PNG or JPEG through the system share sheet.
+- Opens PDFs from Files, from other apps ("Open in…") and keeps a list of recent documents.
+
+To run it on your own iPhone: open `ios-native/PDFEditor.xcodeproj` in Xcode 16 or newer, pick your Apple ID under _Signing & Capabilities_, connect the phone and press Run. `xcodebuild test -project ios-native/PDFEditor.xcodeproj -scheme PDFEditor -destination 'platform=iOS Simulator,name=iPhone 16'` runs the 40 unit tests.
+
+How it differs from the web engine: the native app covers the original line and draws the new text over it when the PDF is saved, so the old glyphs stay underneath in the file. The web and desktop apps rewrite the content stream itself. Bringing the content-stream rewriter to Swift is on the [improvement list](docs/IMPROVEMENTS.md).
+
+## Desktop app
+
+![PDF Editor running as a desktop app](docs/desktop.jpg)
+
+`desktop/` wraps the web build in Electron for Windows, macOS and Linux. It works offline and serves the app from a local port on `127.0.0.1`.
+
+```bash
+npm run build:web
+cd desktop && npm install && npm start
+```
+
 A professional React Native PDF editor that loads, parses, and **rewrites the PDF content stream**. Text and images are first-class nodes in the document AST. Mutations are not flattened annotations.
 
 ![Start screen](docs/home.jpg)

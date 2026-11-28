@@ -59,4 +59,12 @@ final class TextLayoutTests: XCTestCase {
         XCTAssertEqual(FontResolver.fallbackName(for: "TimesWhatever"), "TimesNewRomanPSMT")
         XCTAssertEqual(FontResolver.fallbackName(for: "SomeMono-Bold"), "Courier-Bold")
     }
+
+    func testBoldCanBeToggled() {
+        XCTAssertEqual(FontResolver.toggledBold("Helvetica"), "Helvetica-Bold")
+        XCTAssertEqual(FontResolver.toggledBold("Helvetica-Bold"), "Helvetica")
+        XCTAssertEqual(FontResolver.toggledBold("ABCDEF+TimesNewRomanPS-BoldMT"), "TimesNewRomanPSMT")
+        XCTAssertTrue(FontResolver.isBold("Arial-BoldMT"))
+        XCTAssertFalse(FontResolver.isBold("ArialMT"))
+    }
 }

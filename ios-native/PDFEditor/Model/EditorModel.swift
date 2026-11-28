@@ -251,6 +251,15 @@ final class EditorModel: Identifiable {
         apply(after, selecting: selectedID, keepEditing: true)
     }
 
+    func toggleSelectedBold() {
+        guard let selectedID, let index = elements.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard elements[index].isText else { return }
+        var after = elements
+        after[index].fontName = FontResolver.toggledBold(after[index].fontName)
+        after[index] = Self.resized(after[index])
+        apply(after, selecting: selectedID, keepEditing: true)
+    }
+
     func setSelectedColor(_ hex: UInt32) {
         guard let selectedID, let index = elements.firstIndex(where: { $0.id == selectedID }) else { return }
         guard elements[index].isText, elements[index].colorHex != hex else { return }

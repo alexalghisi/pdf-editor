@@ -15,7 +15,7 @@ enum Theme {
 
     static let touchTarget: CGFloat = 44
     static let contentMaxWidth: CGFloat = 560
-    static let swatches: [UInt32] = [0x111111, 0xD92D20, 0x1D4ED8, 0x15803D, 0xFFFFFF]
+    static let swatches: [UInt32] = [0x111111, 0xD92D20, 0x1D4ED8, 0x15803D]
 }
 
 extension Color {

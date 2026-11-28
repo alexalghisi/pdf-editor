@@ -46,6 +46,10 @@ enum TextLayout {
         if let attributed = selection.attributedString, attributed.length > 0 {
             if let font = attributed.attribute(.font, at: 0, effectiveRange: nil) as? UIFont {
                 fontName = font.fontName
+                let traits = font.fontDescriptor.symbolicTraits
+                if traits.contains(.traitBold), !FontResolver.isBold(fontName) {
+                    fontName = FontResolver.toggledBold(fontName)
+                }
                 if font.pointSize >= 4, font.pointSize <= bounds.height * 1.4 {
                     fontSize = font.pointSize
                 }

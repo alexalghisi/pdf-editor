@@ -120,6 +120,16 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(model.elements[0], before)
     }
 
+    func testTogglingBoldOnTheSelection() {
+        let model = TestSupport.makeModel()
+        model.addText()
+        model.commitEditing()
+        model.toggleSelectedBold()
+        XCTAssertEqual(model.elements[0].fontName, "Helvetica-Bold")
+        model.undo()
+        XCTAssertEqual(model.elements[0].fontName, "Helvetica")
+    }
+
     func testMovingAnElement() throws {
         let model = TestSupport.makeModel()
         model.addText()

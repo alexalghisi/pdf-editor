@@ -131,16 +131,25 @@ struct EditorView: View {
     }
 
     private func selectionBar(for element: EditElement) -> some View {
-        HStack(spacing: 8) {
-            if element.isText {
-                iconButton("pencil", label: "Edit text") { model.beginEditing(element.id) }
-                styleRow
-            } else {
-                iconButton("minus.magnifyingglass", label: "Smaller") { model.scaleSelected(by: 0.8) }
-                iconButton("plus.magnifyingglass", label: "Larger") { model.scaleSelected(by: 1.25) }
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                if element.isText {
+                    iconButton("pencil", label: "Edit text") { model.beginEditing(element.id) }
+                } else {
+                    iconButton("minus.magnifyingglass", label: "Smaller") { model.scaleSelected(by: 0.8) }
+                    iconButton("plus.magnifyingglass", label: "Larger") { model.scaleSelected(by: 1.25) }
+                }
                 Spacer(minLength: 0)
+                Text("Hold and drag to move")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                iconButton("trash", label: "Delete", tint: Theme.danger) { model.deleteSelected() }
             }
-            iconButton("trash", label: "Delete", tint: Theme.danger) { model.deleteSelected() }
+            if element.isText {
+                styleRow
+            }
         }
     }
 
@@ -148,6 +157,11 @@ struct EditorView: View {
         HStack(spacing: 8) {
             iconButton("textformat.size.smaller", label: "Smaller text") { model.scaleSelected(by: 1 / 1.1) }
             iconButton("textformat.size.larger", label: "Larger text") { model.scaleSelected(by: 1.1) }
+            iconButton(
+                "bold",
+                label: "Bold",
+                prominent: FontResolver.isBold(model.selected?.fontName ?? "")
+            ) { model.toggleSelectedBold() }
             Spacer(minLength: 0)
             ForEach(Theme.swatches, id: \.self) { hex in
                 Button {
