@@ -360,6 +360,12 @@ final class EditorModel: Identifiable {
         undoStack.append(command)
     }
 
+    func startDemoEdit() {
+        guard let page = document.page(at: 0), let line = TextLayout.lines(of: page).first else { return }
+        handleTap(at: CGPoint(x: line.bounds.midX, y: line.bounds.midY), on: page)
+        updateEditingText("\(line.text), edited on iOS")
+    }
+
     func textPages() -> [TextPage] {
         (0..<document.pageCount).compactMap { index in
             guard let page = document.page(at: index) else { return nil }

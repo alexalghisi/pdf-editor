@@ -13,8 +13,12 @@ struct PDFEditorApp: App {
                     state.open(url: url)
                 }
                 .onAppear {
-                    if ProcessInfo.processInfo.arguments.contains("-openSample") {
+                    let arguments = ProcessInfo.processInfo.arguments
+                    if arguments.contains("-openSample") || arguments.contains("-demoEdit") {
                         state.openSample()
+                    }
+                    if arguments.contains("-demoEdit") {
+                        state.editor?.startDemoEdit()
                     }
                 }
         }

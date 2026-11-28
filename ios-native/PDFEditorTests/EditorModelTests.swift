@@ -42,6 +42,13 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(model.elements.map(\.text), ["Goodbye"])
     }
 
+    func testTheDemoEditRewritesTheFirstLine() {
+        let model = TestSupport.makeModel()
+        model.startDemoEdit()
+        XCTAssertTrue(model.isEditing)
+        XCTAssertEqual(model.editingText, "Hello World, edited on iOS")
+    }
+
     func testCancellingRestoresTheLine() throws {
         let model = TestSupport.makeModel()
         let (point, page) = try lineCentre("Hello World", in: model)
