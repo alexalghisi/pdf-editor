@@ -1,0 +1,106 @@
+name: iOS
+
+on:
+  push:
+    paths:
+      - 'ios-native/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'ios-native/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios-native
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick simulators
+        run: |
+          xcodebuild -version
+          pick() {
+            xcrun simctl list devices available -j |
+              python3 -c "import json,sys; kind=sys.argv[1]; devices=[d for runtime,items in json.load(sys.stdin)['devices'].items() if 'iOS' in runtime for d in items if d['name'].startswith(kind)]; print(devices[-1]['udid'])" "$1"
+          }
+          echo "IPHONE=$(pick iPhone)" >> "$GITHUB_ENV"
+          echo "IPAD=$(pick iPad)" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project PDFEditor.xcodeproj \
+            -scheme PDFEditor \
+            -destination "platform=iOS Simulator,id=$IPHONE" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO | tee test.log | grep -E "error:|warning: unre|Test Case|Test Suite|\*\* TEST|Executed" || (tail -n 200 test.log && exit 1)
+
+      - name: Screenshots
+        run: |
+          app=build/Build/Products/Debug-iphonesimulator/PDFEditor.app
+          mkdir -p screenshots
+          shoot() {
+            xcrun simctl boot "$1" || true
+            xcrun simctl bootstatus "$1" -b
+            xcrun simctl install "$1" "$app"
+            xcrun simctl launch "$1" com.alghisi.pdfeditor.native
+            sleep 12
+            xcrun simctl io "$1" screenshot "screenshots/$2-home.png"
+            xcrun simctl terminate "$1" com.alghisi.pdfeditor.native
+            xcrun simctl launch "$1" com.alghisi.pdfeditor.native -openSample
+            sleep 12
+            xcrun simctl io "$1" screenshot "screenshots/$2-editor.png"
+            xcrun simctl shutdown "$1"
+          }
+          shoot "$IPHONE" iphone
+          shoot "$IPAD" ipad
+
+      - name: Simulator build
+        run: |
+          cd build/Build/Products/Debug-iphonesimulator
+          zip -qry "$GITHUB_WORKSPACE/PDFEditor-iOS-Simulator.zip" PDFEditor.app
+
+      - name: Unsigned IPA for iPhone and iPad
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PDFEditor.xcodeproj \
+            -scheme PDFEditor \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO | tee device.log | grep -E "error:|\*\* BUILD" || (tail -n 200 device.log && exit 1)
+          mkdir Payload
+          cp -R build-device/Build/Products/Release-iphoneos/PDFEditor.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/PDFEditor-iOS-unsigned.ipa" Payload
+
+      - name: Upload test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-logs
+          path: ios-native/*.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: ios-native/screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-builds
+          path: |
+            PDFEditor-iOS-Simulator.zip
+            PDFEditor-iOS-unsigned.ipa
