@@ -45,6 +45,12 @@ To run it on your own iPhone: open `ios-native/PDFEditor.xcodeproj` in Xcode 16 
 
 How it differs from the web engine: the native app covers the original line and draws the new text over it when the PDF is saved, so the old glyphs stay underneath in the file. The web and desktop apps rewrite the content stream itself. Bringing the content-stream rewriter to Swift is on the [improvement list](docs/IMPROVEMENTS.md).
 
+## Android app
+
+<img src="docs/android-home.jpg" alt="PDF Editor on Android" width="220">
+
+The APK is the React Native app from this repository. Every release build is installed and launched on an emulator in CI before it is published.
+
 ## Desktop app
 
 ![PDF Editor running as a desktop app](docs/desktop.jpg)
