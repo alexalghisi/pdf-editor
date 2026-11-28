@@ -8,3 +8,6 @@ ios
 dist
 web-build
 src/infrastructure/pdf/fonts/unicodeFontData.ts
+ios-native
+desktop/release
+desktop/package-lock.json

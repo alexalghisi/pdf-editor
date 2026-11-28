@@ -1,0 +1,72 @@
+{
+  "name": "pdf-editor-desktop",
+  "productName": "PDF Editor",
+  "version": "1.1.0",
+  "private": true,
+  "description": "PDF Editor for Windows, macOS and Linux",
+  "author": "Alghisi Alessandro Paolo <alexalghisi@gmail.com>",
+  "homepage": "https://alexalghisi.github.io/pdf-editor/",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^39.2.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.alghisi.pdfeditor.desktop",
+    "productName": "PDF Editor",
+    "artifactName": "PDF-Editor-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "server.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "web"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "pdf",
+        "name": "PDF document",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "../assets/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "../assets/icon.png",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "../assets/icon.png"
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexalghisi/pdf-editor.git"
+  },
+  "desktopName": "pdf-editor.desktop"
+}
